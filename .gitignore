@@ -1,0 +1,6 @@
+config.js
+config.local.js
+.env
+.env.*
+*.log
+.DS_Store
