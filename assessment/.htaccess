@@ -1,0 +1,5 @@
+Options -Indexes
+# Only the two public form assets are served directly. PHP includes remain usable server-side.
+<FilesMatch "^(?!form\.(css|js)$).*$">
+    Require all denied
+</FilesMatch>

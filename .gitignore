@@ -4,3 +4,8 @@ config.local.js
 .env.*
 *.log
 .DS_Store
+
+# Server-only assessment configuration and generated private state
+assessment/config.local.php
+assessment/private/
+assessment/reports/

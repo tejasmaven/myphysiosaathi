@@ -1,0 +1,62 @@
+[
+  {
+    "code": "A",
+    "title": "Patient registration and record retrieval",
+    "description": "How reliably patient information is captured, organised and found.",
+    "questions": {
+      "A1": "How reliably does your clinic maintain one clearly identifiable record for each patient, without duplicate or mixed-up files?",
+      "A2": "How consistently are a new patient's required registration details completed before the first treatment session?",
+      "A3": "How reliably can the treating physiotherapist find a returning patient's previous treatment history within two minutes?",
+      "A4": "How consistently are relevant medical reports linked to the correct patient record?",
+      "A5": "How reliably can staff find existing patient information without asking the patient to provide it again?"
+    }
+  },
+  {
+    "code": "B",
+    "title": "Treatment documentation and continuity",
+    "description": "How consistently treatment is documented and understood across visits.",
+    "questions": {
+      "B1": "How consistently is an initial assessment recorded for each new treatment episode?",
+      "B2": "How consistently is a clear treatment goal recorded for each treatment episode?",
+      "B3": "How consistently is a dated treatment note completed on the same day as each session?",
+      "B4": "How consistently are the exercises or treatment activities performed during a session recorded with enough detail for the next visit?",
+      "B5": "How reliably can another physiotherapist understand the patient's current treatment plan from the record without needing a verbal explanation?"
+    }
+  },
+  {
+    "code": "C",
+    "title": "Treatment charges and payment control",
+    "description": "How accurately treatment charges, collections and balances are maintained.",
+    "questions": {
+      "C1": "How consistently is the correct charge recorded for every chargeable treatment session?",
+      "C2": "How consistently is each payment recorded against the correct patient on the day it is received?",
+      "C3": "How reliably can staff confirm a patient's outstanding balance without manually recalculating past transactions?",
+      "C4": "How consistently are recorded collections checked against the payments actually received?",
+      "C5": "How consistently are overdue patient balances reviewed according to a defined routine?"
+    }
+  },
+  {
+    "code": "D",
+    "title": "Staff coordination and owner visibility",
+    "description": "How well responsibilities, continuity and routine oversight work.",
+    "questions": {
+      "D1": "How consistently do staff follow a clear allocation of responsibility for completing patient records?",
+      "D2": "How reliably can routine administration continue when the staff member who normally handles it is absent?",
+      "D3": "How consistently are patients who stop attending before their planned treatment is completed identified for review?",
+      "D4": "How reliably can the clinic owner obtain an accurate count of completed treatment sessions for a selected week without manually counting individual entries?",
+      "D5": "How consistently does the clinic owner review workflow problems and assign corrective actions?"
+    }
+  },
+  {
+    "code": "E",
+    "title": "Information protection and recovery",
+    "description": "How reliably clinic information is protected and can be recovered.",
+    "questions": {
+      "E1": "How consistently is access to patient information limited to staff who need it for their work?",
+      "E2": "How consistently are patient records protected from being viewed by visitors or other patients?",
+      "E3": "How reliably does your clinic maintain a separate recovery copy of essential patient and payment records?",
+      "E4": "How confidently can your clinic demonstrate that records can be recovered, based on an actual recovery check within the last six months?",
+      "E5": "How consistently is a departing staff member's access to clinic information removed promptly?"
+    }
+  }
+]
