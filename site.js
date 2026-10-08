@@ -1,33 +1,45 @@
 'use strict';
 (()=>{
 const form=document.getElementById('enquiry-form'),type=document.getElementById('enquiry-type'),submit=document.getElementById('submit-button'),alert=document.getElementById('form-error'),success=document.getElementById('success'),availability=document.getElementById('availability');
-const endpoint=window.PHYSIO_CONFIG?.formEndpoint||'';
-const apiKey=window.PHYSIO_CONFIG?.emailApiKey||'';
-const configured=/^https:\/\//.test(endpoint)&&Boolean(apiKey);
+const endpoint='enquiry.php';
+let configured=false,csrf='',lastPayload='',requestId='';
+async function initialiseEnquiry(){
+  submit.disabled=true;
+  availability.textContent='Preparing the enquiry form…';
+  try{
+    const response=await fetch(endpoint,{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});
+    const result=await response.json();
+    configured=response.ok&&result?.configured===true&&typeof result.csrf==='string';
+    csrf=configured?result.csrf:'';
+  }catch{configured=false;}
+  submit.disabled=!configured;
+  availability.textContent=configured?'Share your clinic’s contact details. Tejas will contact you to arrange the next step.':'Online enquiries are temporarily unavailable. Please call Tejas to arrange a demonstration.';
+}
 let sending=false;
 submit.disabled=!configured;
-if(!configured)availability.textContent='Online enquiries are not available yet. Please call Tejas to arrange a demonstration.';
-class EnquiryApiError extends Error {
+
+class EnquiryMailError extends Error {
   constructor(message,status,errors={}){super(message);this.status=status;this.errors=errors;}
 }
-async function sendEnquiryToEmailApi(enquiry,signal){
-  if(!configured)throw new EnquiryApiError('Online enquiries are not available yet. Please call +91 98256 47083.',0);
+async function sendEnquiryViaPhpMailer(enquiry,signal){
+  if(!configured)throw new EnquiryMailError('Online enquiries are not available yet. Please call +91 98256 47083.',0);
   const response=await fetch(endpoint,{
     method:'POST',
-    headers:{'Content-Type':'application/json','Accept':'application/json','X-Api-Key':apiKey},
+    credentials:'same-origin',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({
       full_name:enquiry.fullName,clinic_name:enquiry.clinicName,city:enquiry.city,
       mobile_number:enquiry.mobile,email:enquiry.email,enquiry_type:enquiry.enquiryType,
-      message:enquiry.message,website:enquiry.website,
+      message:enquiry.message,website:enquiry.website,csrf,request_id:requestId,
     }),signal,
   });
   let result;
-  try{result=await response.json();}catch{throw new EnquiryApiError('We could not confirm your request was received. Please try again or call +91 98256 47083.',response.status);}
+  try{result=await response.json();}catch{throw new EnquiryMailError('We could not confirm your request was received. Please try again or call +91 98256 47083.',response.status);}
   if(response.status!==200||result?.ok!==true){
     let message=typeof result?.message==='string'?result.message:'Your request could not be sent. Please try again.';
-    if([400,403,404,405].includes(response.status))message='Online enquiries are temporarily unavailable. Please call +91 98256 47083.';
+    if([404,405].includes(response.status))message='Online enquiries are temporarily unavailable. Please call +91 98256 47083.';
     if(response.status===500)message+=' Please try again later.';
-    throw new EnquiryApiError(message,response.status,response.status===422&&result?.errors&&typeof result.errors==='object'?result.errors:{});
+    throw new EnquiryMailError(message,response.status,response.status===422&&result?.errors&&typeof result.errors==='object'?result.errors:{});
   }
   return result;
 }
@@ -55,16 +67,19 @@ form.addEventListener('submit',async e=>{
   if(!configured){alert.textContent='Online enquiries are not available yet. Please call +91 98256 47083.';alert.hidden=false;return;}
   if(form.elements.website.value){alert.textContent='Your request could not be sent. Please call Tejas.';alert.hidden=false;return;}
   sending=true;submit.disabled=true;submit.textContent='Sending…';
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
   try{
     const data=Object.fromEntries(new FormData(form));for(const key of Object.keys(data))data[key]=String(data[key]).trim();
-    const result=await sendEnquiryToEmailApi(data,controller.signal);
+    const payload=JSON.stringify(data);
+    if(payload!==lastPayload||!requestId){lastPayload=payload;requestId=crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
+    const result=await sendEnquiryViaPhpMailer(data,controller.signal);
+    lastPayload='';requestId='';
     document.getElementById('success-message').textContent=typeof result.message==='string'&&result.message?result.message:'Your enquiry has been sent. Tejas will contact you using the details provided.';
     form.reset();selectType(type.value);form.hidden=true;success.hidden=false;success.focus();
   }catch(error){
     let first=null;
-    if(error instanceof EnquiryApiError){for(const [key,message]of Object.entries(error.errors)){const id=fieldIds[key];if(typeof id==='string'&&typeof message==='string'){setFieldError(id,message);if(!first)first=document.getElementById(id);}}}
-    alert.textContent=error instanceof EnquiryApiError?error.message:'We could not confirm your request was received. Please try again or call +91 98256 47083.';
+    if(error instanceof EnquiryMailError){for(const [key,message]of Object.entries(error.errors)){const id=fieldIds[key];if(typeof id==='string'&&typeof message==='string'){setFieldError(id,message);if(!first)first=document.getElementById(id);}}}
+    alert.textContent=error instanceof EnquiryMailError?error.message:'We could not confirm your request was received. Please try again or call +91 98256 47083.';
     alert.hidden=false;if(first)first.focus();
   }finally{clearTimeout(timer);sending=false;submit.disabled=!configured;selectType(type.value);}
 });
@@ -95,4 +110,5 @@ journeyButtons.forEach((button,index)=>{
     event.preventDefault();activateJourney(next);journeyButtons[next].focus();
   });
 });
+initialiseEnquiry();
 })();
