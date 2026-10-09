@@ -28,6 +28,7 @@ function permit_submission(array $config): bool {
 }
 require_once __DIR__.'/config-loader.php';
 require_once __DIR__.'/report-store.php';
+require_once __DIR__.'/diagnostics.php';
 $config=assessment_load_config();
 $ready=assessment_config_ready($config);
 if(!isset($_SESSION['token'])){$_SESSION['token']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();}
@@ -60,6 +61,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             }
         } catch(InvalidArgumentException $e){$errors['form']='Some submitted information is invalid or too long. Please check your entries.';}
         if(!$errors){
+            $processingStage='create_record';
             try {
                 // Persist the immutable structured submission before PDF generation or delivery.
                 if(!isset($_SESSION['pending_reference'])){
@@ -69,6 +71,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>$submitted->format('d M Y, H:i').' IST','submitted_at_iso'=>$submitted->format('c'),'assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'domain_notes'=>$domainNotes];
                     $_SESSION['pending_reference']=assessment_create_record($config,$submission,$domains,$rules,$catalogue);
                 }
+                $processingStage='generate_or_deliver';
                 require_once __DIR__.'/pdf.php';require_once __DIR__.'/mail.php';
                 $pending=assessment_process_record($config,$_SESSION['pending_reference'],
                     fn($report)=>customer_report_pdf($report,$labels),
@@ -79,7 +82,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                     header('Location: free-assesment.php?submitted=1',true,303);exit;
                 }
                 $errors['form']='Email delivery could not complete. Your report is saved privately. Use Retry report delivery below; copies already sent will not be sent again.';
-            }catch(Throwable $e){error_log('Assessment processing failed');$errors['form']=$e->getMessage()==='Too many submissions. Please try again in one hour.'?$e->getMessage():'We could not process your assessment. Please try again or call +91 98256 47083.';}
+            }catch(Throwable $e){$support=assessment_log_failure($e,$processingStage);$errors['form']=$e->getMessage()==='Too many submissions. Please try again in one hour.'?$e->getMessage():'We could not process your assessment. Please try again or call +91 98256 47083. Support code: '.$support.'.';}
         }
     }
 }
