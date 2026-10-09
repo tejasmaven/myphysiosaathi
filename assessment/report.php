@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/roadmap.php';
 /** Deterministic report engine. No SMTP, filesystem, or current-time dependency. */
 function assessment_normalize_answer($value) {
     if(is_int($value) && $value>=1 && $value<=5)return $value;
@@ -76,7 +77,7 @@ function assessment_build_report(array $submission,array $domains,array $rules,a
     foreach($confirm as $f)if($f['important_control'] && count($actions)<5)$actions[]=$f;
     foreach($applicability as $f)if(count($actions)<5)$actions[]=$f;
     foreach(array_merge($confirm,array_slice($gaps,3)) as $f){if(count($actions)>=5)break;if(!in_array($f['id'],array_column($actions,'id'),true))$actions[]=$f;}
-    return ['submission'=>$submission,'versions'=>['assessment'=>$submission['assessment_version'],'scoring'=>$rules['version'],'recommendations'=>$catalogue['version']],
+    $report = ['submission'=>$submission,'versions'=>['assessment'=>$submission['assessment_version'],'scoring'=>$rules['version'],'recommendations'=>$catalogue['version']],
         'status'=>($counts['unknown']+$counts['missing']+$counts['na'])?'Provisional':'Complete self-reported',
         'counts'=>$counts,'numeric_sum'=>$sum,'overall_average'=>$average,'coverage'=>$coverage,
         'coverage_label'=>$counts['na']?'Coverage excluding respondent-selected N/A answers (unreviewed)':'Numeric response coverage',
@@ -84,4 +85,5 @@ function assessment_build_report(array $submission,array $domains,array $rules,a
         'domains'=>$scorecard,'findings'=>$findings,'priority_findings'=>array_slice($gaps,0,3),'items_to_confirm'=>$confirm,'applicability_review'=>$applicability,'action_plan'=>$actions,
         'strongest_domain'=>$strongest,'weakest_domain'=>$weakest,
         'disclaimer'=>"This report is based on the clinic's self-reported answers. It identifies process improvement opportunities and is not a clinical, security or compliance certification."];
+    return assessment_add_roadmap($report,$catalogue);
 }

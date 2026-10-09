@@ -1,7 +1,7 @@
 <?php
 // Version this catalogue whenever wording or recommendations change.
-return [
- 'version'=>'1.0.0',
+$catalogue = [
+ 'version'=>'1.1.0',
  // Empty until capabilities are separately verified and approved. Never list reminders,
  // automatic reconciliation, backups or recovery testing without separate verification.
  'verified_capability_allowlist'=>[],
@@ -308,3 +308,7 @@ return [
  ],
  ],
 ];
+
+// Snapshot the complete measurement catalogue with each report.
+$catalogue['measurement_catalogue']=require __DIR__.'/roadmap-catalogue.php';
+return $catalogue;

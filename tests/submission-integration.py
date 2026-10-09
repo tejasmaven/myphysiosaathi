@@ -77,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix='mps-integration-') as temp:
   try:
    import fitz
    doc=fitz.open(stream=pdf,filetype='pdf');text=''.join(page.get_text() for page in doc)
-   for required in ['3.55 / 5','91.67%','Provisional','IMPORTANT CONTROL GAP','C4','C5','D1','C1','B5','D5','Suggested 30-day action plan','Scoring rules: 1.0.0']:assert required in text,required
+   for required in ['3.55 / 5','91.67%','Provisional','IMPORTANT CONTROL GAP','C4','C5','D1','C1','B5','D5','Suggested 30-day action plan','Scoring rules: 1.0.0','Full KRA and KPI register','Day-90 outcome review','A practical clinic improvement roadmap']:assert required in text,required
    assert '125' not in text and 'why routine owner review' in text
   except ImportError:print('PyMuPDF unavailable: attachment bytes checked, text extraction skipped.')
   # Replayed successful POST has an expired token and cannot create another record.

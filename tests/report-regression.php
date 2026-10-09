@@ -15,6 +15,15 @@ foreach(['A'=>3.4,'B'=>4.5,'C'=>2.5,'D'=>3.5,'E'=>3.8] as $id=>$average)close_to
 check($report['numeric_sum']===78,'Numeric sum');check($report['counts']===['numeric'=>22,'unknown'=>2,'na'=>1,'missing'=>0],'Counts');
 check(report_number($report['overall_average'])==='3.55','Question-weighted average');check(report_number($report['coverage'])==='91.67','Coverage');
 check($report['status']==='Provisional' && $report['overall_eligible'],'Provisional but eligible interpretation');
+check($report['versions']['roadmap']==='1.0.0' && $report['versions']['presentation']==='2.0.0','Versioned roadmap');
+check(count($report['kpi_register'])===25 && count($report['domain_plans'])===5,'Complete domain and KPI planning coverage');
+foreach($report['kpi_register'] as $m){check($m['actual_day90']===null,'No invented actuals');check(str_contains($m['baseline'],'Not measured'),'No inferred KPI baseline');}
+check($report['kpi_register']['C1']['mode']==='Confirm before planning','Unknown KPI requires confirmation');
+check(str_contains($report['kpi_register']['D5']['target_for_report'],'Applicability'),'N/A target not activated');
+check(count($report['roadmap_90'])===3 && count($report['day90_review'])===5,'Phased 90-day plan and selected outcomes');
+foreach($report['day90_review'] as $row)check($row['baseline']===null && $row['agreed_target']===null && $row['actual']===null && $row['status']==='Not yet reviewed','No invented baseline, agreement or achievement');
+$legacy=$catalogue;unset($legacy['measurement_catalogue']);$old=assessment_build_report($submission,$domains,$rules,$legacy);check(!isset($old['domain_plans'],$old['versions']['roadmap']),'Old catalogue snapshot compatibility');
+
 check(array_column($report['priority_findings'],'id')===['C4','C5','D1'],'Stable numeric priorities');
 check(array_column($report['items_to_confirm'],'id')===['C1','B5'],'Unknown control first');
 check(array_column($report['applicability_review'],'id')===['D5'],'N/A review');
