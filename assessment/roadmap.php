@@ -19,7 +19,7 @@ function assessment_add_roadmap(array $report,array $catalogue): array {
         });
         $selected=array_slice($findings,0,3);$plans[$code]=['observations'=>$selected,'metrics'=>array_map(fn($f)=>$register[$f['id']],$selected)];
     }
-    $report['versions']['roadmap']=$metrics['version'];$report['versions']['presentation']='3.0.0';
+    $report['versions']['roadmap']=$metrics['version'];$report['versions']['presentation']='4.0.0';
     $report['domain_plans']=$plans;$report['kpi_register']=$register;
     $report['roadmap_90']=[
         ['phase'=>'Within 30 days','theme'=>'Confirm and establish','action'=>'Confirm unknown answers and N/A applicability. Choose the supported priorities, agree responsibilities and measure baseline KPIs before changing the process.','evidence'=>'Applicability decisions, named responsibilities, baseline numerator/denominator or test result, and an agreed action list.'],

@@ -5,8 +5,8 @@ function check($ok,string $message): void {if(!$ok)throw new RuntimeException($m
 function close_to($actual,$expected,string $message): void {check(abs($actual-$expected)<0.000001,$message);}
 $domains=json_decode(file_get_contents(__DIR__.'/../assessment/questions.json'),true,512,JSON_THROW_ON_ERROR);
 $rules=require __DIR__.'/../assessment/scoring-rules.php';$catalogue=require __DIR__.'/../assessment/recommendations.php';
-$labels=['clinic_name'=>'Clinic name','doctor_name'=>'Doctor full name','location'=>'Location','city'=>'City','mobile'=>'Mobile number','email'=>'Email address','beds'=>'Beds / treatment couches'];
-$submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>'09 Oct 2026, 12:00 IST','assessment_version'=>$rules['assessment_version'],
+$labels=['clinic_name'=>'Clinic name','doctor_name'=>'Doctor full name','location'=>'Location / area / address','city'=>'City','mobile'=>'Mobile number','email'=>'Email address','beds'=>'Number of beds / treatment couches'];
+$submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>'09 Oct 2026, 12:00 IST','submitted_at_iso'=>'2026-10-09T12:00:00+05:30','assessment_version'=>$rules['assessment_version'],
     'fields'=>['clinic_name'=>'Example Physiotherapy Clinic','doctor_name'=>'Dr Example','location'=>'Example area','city'=>'Surat','mobile'=>'9876543210','email'=>'clinic@example.test','beds'=>'0'],'answers'=>[],'domain_notes'=>[]];
 $fixture=['A'=>[3,3,3,4,4],'B'=>[4,4,5,5,'unknown'],'C'=>['unknown',4,3,2,1],'D'=>[2,3,4,5,'na'],'E'=>[4,3,5,3,4]];
 foreach($fixture as $domain=>$values)foreach($values as $i=>$value)$submission['answers'][$domain.($i+1)]=$value;
@@ -15,7 +15,7 @@ foreach(['A'=>3.4,'B'=>4.5,'C'=>2.5,'D'=>3.5,'E'=>3.8] as $id=>$average)close_to
 check($report['numeric_sum']===78,'Numeric sum');check($report['counts']===['numeric'=>22,'unknown'=>2,'na'=>1,'missing'=>0],'Counts');
 check(report_number($report['overall_average'])==='3.55','Question-weighted average');check(report_number($report['coverage'])==='91.67','Coverage');
 check($report['status']==='Provisional' && $report['overall_eligible'],'Provisional but eligible interpretation');
-check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='3.0.0','Versioned roadmap');
+check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='4.0.0','Versioned roadmap');
 check(count($report['kpi_register'])===25 && count($report['domain_plans'])===5,'Complete domain and KPI planning coverage');
 foreach($report['kpi_register'] as $m){check($m['actual_day90']===null,'No invented actuals');check($m['baseline']==='Baseline to be measured','No inferred KPI baseline');}
 check($report['kpi_register']['C1']['mode']==='Confirm before planning','Unknown KPI requires confirmation');
@@ -67,14 +67,25 @@ $s['domain_notes']['A'].='é';$rejected=false;try{assessment_build_report($s,$do
 foreach([-1,'-1','1.2',1.0,true,null] as $beds){$rejected=false;try{assessment_normalize_beds($beds);}catch(InvalidArgumentException $e){$rejected=true;}check($rejected,'Invalid beds rejected');}check(assessment_normalize_beds('0')===0,'Zero beds');
 $s=$submission;$s['answers']=array_fill_keys(array_keys($s['answers']),'unknown');$r=assessment_build_report($s,$domains,$rules,$catalogue);check($r['status']==='Insufficient information','Insufficient status precedence');
 
+// Mixed answers and maximum-length explanations must also stay within the page budget.
+mt_srand(20261009);
+for($case=0;$case<100;$case++){
+    $s=$submission;$s['id']='09102026-1';$choices=[1,2,3,4,5,'unknown','na'];
+    foreach($s['answers'] as $id=>$value)$s['answers'][$id]=$choices[$case<7?$case:mt_rand(0,6)];
+    $s['domain_notes']=array_fill_keys(['A','B','C','D','E'],substr(str_repeat('Anonymised explanation. ',100),0,2000));
+    $bytes=customer_report_pdf(assessment_build_report($s,$domains,$rules,$catalogue),$labels);
+    check(preg_match_all('/\/Type \/Page\b/',$bytes)===8,'Eight-page mixed response case '.$case);
+}
 // Optional layout fixtures for the release's explicit PDF acceptance review.
 if(getenv('REPORT_TEST_DIRECTORY')){
     $dir=getenv('REPORT_TEST_DIRECTORY');if(!is_dir($dir))mkdir($dir,0700,true);
-    foreach(['all3'=>3,'all4'=>4,'all5'=>5,'all1'=>1,'unknown'=>'unknown','na'=>'na','long-notes'=>4] as $name=>$answer){
-        $s=$submission;$s['id']=strtoupper(bin2hex(random_bytes(16)));$s['answers']=array_fill_keys(array_keys($s['answers']),$answer);
+    foreach(['all3'=>3,'all4'=>4,'all5'=>5,'all1'=>1,'unknown'=>'unknown','na'=>'na','long-notes'=>4,'max-profile'=>3,'wide-profile'=>1] as $name=>$answer){
+        $s=$submission;$s['id']='09102026-1';$s['answers']=array_fill_keys(array_keys($s['answers']),$answer);
         if($name==='all4')$s['domain_notes']=array_fill_keys(['A','B','C','D','E'],'We check a recent sample and record any gaps for review.');
         if($name==='long-notes'){$s['fields']['clinic_name']=str_repeat('Example Clinic ',10);$s['fields']['location']=str_repeat('Example area ',30);$s['domain_notes']=array_fill_keys(['A','B','C','D','E'],substr(str_repeat('We check anonymised records and follow up on exceptions. ',45),0,2000));}
-        $r=assessment_build_report($s,$domains,$rules,$catalogue);file_put_contents($dir.'/'.$name.'.pdf',customer_report_pdf($r,$labels));
+        if($name==='max-profile' || $name==='wide-profile'){foreach(['clinic_name','doctor_name','city'] as $key)$s['fields'][$key]=substr(str_repeat('Example details ',20),0,160);$s['fields']['location']=substr(str_repeat('Example address ',40),0,500);$s['fields']['email']=str_repeat('a',64).'@'.str_repeat('b',60).'.'.str_repeat('c',60).'.'.str_repeat('d',60).'.test';}
+        if($name==='wide-profile'){foreach(['clinic_name','doctor_name','city'] as $key)$s['fields'][$key]=str_repeat('W',160);$s['fields']['location']=str_repeat('W',500);}
+        $r=assessment_build_report($s,$domains,$rules,$catalogue);$bytes=customer_report_pdf($r,$labels);check(preg_match_all('/\/Type \/Page\b/',$bytes)===8,'Eight pages for '.$name);file_put_contents($dir.'/'.$name.'.pdf',$bytes);
     }
 }
 // Private persistence, generation failure, partial delivery and retry use the real lifecycle.
@@ -86,10 +97,13 @@ try{assessment_process_record($config,$ref,$generator,$sender);}catch(RuntimeExc
 $record=assessment_read_record($config,$ref);check($record['pdf']['status']==='failed' && !$sends,'Separate PDF failure');
 $record=assessment_process_record($config,$ref,$generator,$sender);check($record['pdf']['status']==='generated' && $record['email']['admin']['status']==='failed' && $record['email']['user']['status']==='sent','Partial delivery');
 $record=assessment_process_record($config,$ref,$generator,$sender);check($generation===2 && $sends===['admin','user','admin'],'Retry without regeneration or duplicate user email');
-check($pdfs[0]===$pdfs[1] && $pdfs[1]===$pdfs[2],'Same PDF bytes on retry');check(count(glob($temp.'/*.json'))===1 && $record['reference']===$ref,'Single record/reference');
+check($pdfs[0]===$pdfs[1] && $pdfs[1]===$pdfs[2],'Same PDF bytes on retry');check(count(glob($temp.'/*.json'))===1 && $record['reference']==='09102026-1' && $record['storage_id']===$ref && $record['submission']['id']===$record['reference'],'Single record/reference');
 $reproduced=assessment_build_report($record['submission'],$record['snapshots']['domains'],$record['snapshots']['rules'],$record['snapshots']['catalogue']);check($reproduced===$record['report'],'Reproducible snapshot');
 check((fileperms($temp)&0777)===0700 && (fileperms($temp.'/'.$ref.'.pdf')&0777)===0600,'Private permissions');
 $badDir=__DIR__.'/../assessment/reports-test';$rejected=false;try{assessment_report_directory(['report_directory'=>$badDir]);}catch(RuntimeException $e){$rejected=true;}check($rejected,'Public storage rejected');if(is_dir($badDir))rmdir($badDir);
 if(getenv('REPORT_TEST_OUTPUT'))file_put_contents(getenv('REPORT_TEST_OUTPUT'),$pdfs[0]);
+check(assessment_allocate_reference($config,new DateTimeImmutable('2026-10-09T12:00:00+05:30'))==='09102026-2','Second daily reference');
+check(assessment_allocate_reference($config,new DateTimeImmutable('2026-10-09T20:00:00+00:00'))==='10102026-1','India midnight resets daily sequence');
+check(assessment_allocate_reference($config,new DateTimeImmutable('2026-10-09T12:00:00+05:30'))==='09102026-3','Daily counter survives calls and retries do not allocate');
 foreach(glob($temp.'/*') as $f)unlink($f);rmdir($temp);
 echo "PASS: supplied fixture, extremes, missing/N/A, invalid values, unrounded configurable thresholds, control priorities, catalogue, private storage, reproducibility, PDF failure and email retry.\n";

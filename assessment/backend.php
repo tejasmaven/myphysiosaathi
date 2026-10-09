@@ -65,7 +65,8 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 if(!isset($_SESSION['pending_reference'])){
                     if(!permit_submission($config))throw new RuntimeException('Too many submissions. Please try again in one hour.');
                     $rules=require __DIR__.'/scoring-rules.php';$catalogue=require __DIR__.'/recommendations.php';
-                    $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST','assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'domain_notes'=>$domainNotes];
+                    $submitted=new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata'));
+                    $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>$submitted->format('d M Y, H:i').' IST','submitted_at_iso'=>$submitted->format('c'),'assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'domain_notes'=>$domainNotes];
                     $_SESSION['pending_reference']=assessment_create_record($config,$submission,$domains,$rules,$catalogue);
                 }
                 require_once __DIR__.'/pdf.php';require_once __DIR__.'/mail.php';

@@ -28,12 +28,30 @@ function assessment_store_record(string $base,array $record): void {
 function assessment_read_record(array $config,string $ref): array {
     return json_decode(file_get_contents(assessment_report_path($config,$ref).'.json'),true,512,JSON_THROW_ON_ERROR);
 }
+/** Allocate a human reference in India time. The durable counter is never a public filename. */
+function assessment_allocate_reference(array $config,DateTimeImmutable $submitted): string {
+    $day=$submitted->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('dmY');
+    $path=assessment_report_directory($config).'/reference-'.$day.'.seq';
+    $lock=fopen($path.'.lock','c');
+    if(!$lock || !chmod($path.'.lock',0600) || !flock($lock,LOCK_EX))throw new RuntimeException('Reference counter unavailable.');
+    try{
+        $current=is_file($path)?file_get_contents($path):'0';
+        if(!is_string($current) || !preg_match('/^(0|[1-9][0-9]*)$/D',$current) || strlen($current)>15)throw new RuntimeException('Invalid reference counter.');
+        $next=(int)$current+1;
+        assessment_atomic_write($path,(string)$next);
+        return $day.'-'.$next;
+    }finally{flock($lock,LOCK_UN);fclose($lock);}
+}
 function assessment_create_record(array $config,array $submission,array $domains,array $rules,array $catalogue): string {
-    $ref=$submission['id'];$base=assessment_report_path($config,$ref);
-    // Reserve an unpredictable reference once. Retries always operate on this record.
+    $ref=strtoupper(bin2hex(random_bytes(16)));$base=assessment_report_path($config,$ref);
+    // Validate before allocating. Retries use this private ID and the same public reference.
+    assessment_build_report($submission,$domains,$rules,$catalogue);
+    $submitted=new DateTimeImmutable($submission['submitted_at_iso']??$submission['submitted_at'],new DateTimeZone('Asia/Kolkata'));
+    $submission['storage_id']=$ref;
+    $submission['id']=assessment_allocate_reference($config,$submitted);
     $lock=fopen($base.'.lock','x');if(!$lock)throw new RuntimeException('Assessment reference already exists.');chmod($base.'.lock',0600);fclose($lock);
     $report=assessment_build_report($submission,$domains,$rules,$catalogue);
-    $record=['reference'=>$ref,'submission'=>$report['submission'],'versions'=>$report['versions'],
+    $record=['reference'=>$submission['id'],'storage_id'=>$ref,'submission'=>$report['submission'],'versions'=>$report['versions'],
         'snapshots'=>['domains'=>$domains,'rules'=>$rules,'catalogue'=>$catalogue],
         'report'=>$report,'pdf'=>['status'=>'pending','sha256'=>null],'email'=>['admin'=>['status'=>'pending'],'user'=>['status'=>'pending']]];
     assessment_store_record($base,$record);return $ref;

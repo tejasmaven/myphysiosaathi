@@ -42,7 +42,7 @@ class CustomerReportPDF extends AssessmentPDF {
         $this->Cell(0,6,'MY PHYSIO SAATHI | CLINIC WORKFLOW REPORT');$this->SetXY(18,26);
     }
     public function Section(string $label,string $title): void {
-        $this->SetTextColor(183,25,22);$this->SetFont('Helvetica','B',9);$this->MultiCell(0,5,pdf_text(strtoupper($label)));$this->Ln(2);$this->Heading($title);
+        $this->SetTextColor(183,25,22);$this->SetFont('Helvetica','B',9);$this->MultiCell(0,5,pdf_text(strtoupper($label)));$this->Ln(2);$this->SetFont('Helvetica','B',16);$this->SetTextColor(15,23,43);$this->MultiCell(0,7,pdf_text($title),0,'L');$this->Ln(3);
     }
     public function Panel(string $title,string $text,bool $attention=false,bool $compact=false): void {
         $height=($this->Lines($title,true,168)+$this->Lines($text,false,168))*5.2+($compact?6:10);
@@ -66,7 +66,7 @@ class CustomerReportPDF extends AssessmentPDF {
             $y=$this->GetY();$x=18;
             foreach($cells as $i=>$cell){
                 $this->SetFillColor($head?15:($index%2?248:239),$head?23:($index%2?250:245),$head?43:($index%2?252:250));
-                $this->SetDrawColor(218,226,235);$this->Rect($x,$y,$widths[$i],$height,'DF');
+                $this->SetDrawColor(218,226,235);if(isset($attention) && $attention)$this->SetFillColor(255,244,240);$this->Rect($x,$y,$widths[$i],$height,'DF');
                 $this->SetXY($x+1,$y+2);$this->SetFont('Helvetica',$head?'B':'',9);$this->SetTextColor($head?255:55,$head?255:65,$head?255:81);
                 $this->MultiCell($widths[$i]-2,4.6,pdf_text((string)$cell),0,'L');$x+=$widths[$i];
             }$this->SetXY(18,$y+$height);return $height;
@@ -96,6 +96,46 @@ class CustomerReportPDF extends AssessmentPDF {
             if($length>$max){if($sep===-1){if($i===$j)$i++;}else $i=$sep+1;$sep=-1;$j=$i;$length=0;$lines++;}else $i++;
         }return $lines;
     }
+    public function Small(string $text,bool $bold=false): void {
+        $this->SetFont('Helvetica',$bold?'B':'',9);$this->SetTextColor($bold?15:55,$bold?23:65,$bold?43:81);
+        $this->MultiCell(0,4.1,pdf_text($text),0,'L');$this->Ln(1.2);
+        if($this->GetY()>273)throw new RuntimeException('Compact report page overflow.');
+    }
+    public function Profile(array $rows): void {
+        foreach($rows as $index=>[$label,$value]){
+            $cap=[1,1,3,3,3,2,1,4,2][$index]??3;
+            if($this->Lines($value,false,111,9)>$cap){
+                preg_match_all('/./us',$value,$chars);$parts=$chars[0];
+                do{array_pop($parts);$value=rtrim(implode('',$parts)).' [excerpt]';}while($parts && $this->Lines($value,false,111,9)>$cap);
+            }
+            $height=max($this->Lines($label,true,51,9),$this->Lines($value,false,111,9))*4.4+6;$y=$this->GetY();
+            $this->SetFillColor(229,237,246);$this->Rect(18,$y,57,$height,'F');$this->SetFillColor(248,250,252);$this->Rect(75,$y,117,$height,'F');
+            $this->SetDrawColor(216,226,237);$this->Rect(18,$y,174,$height);
+            $this->SetXY(21,$y+3);$this->SetFont('Helvetica','B',9);$this->SetTextColor(15,23,43);$this->MultiCell(51,4.4,pdf_text($label),0,'L');
+            $this->SetXY(78,$y+3);$this->SetFont('Helvetica','',9);$this->SetTextColor(55,65,81);$this->MultiCell(111,4.4,pdf_text($value),0,'L');$this->SetXY(18,$y+$height);
+        }
+    }
+    public function CompactHeight(array $rows,array $widths,float $size,float $line): float {
+        $height=0;foreach($rows as $row){$lines=1;foreach($row as $i=>$cell)$lines=max($lines,$this->Lines($cell,false,$widths[$i]-5,$size));$height+=$lines*$line+4;}return $height;
+    }
+    public function CompactTable(array $headers,array $rows,array $widths,float $size=9,float $line=4): void {
+        $draw=function(array $cells,bool $head=false,int $index=0)use($widths,$size,$line){
+            $attention=!$head && strpos($cells[0],'IMPORTANT CONTROL GAP')!==false;
+            $lines=1;foreach($cells as $i=>$cell)$lines=max($lines,$this->Lines($cell,$head,$widths[$i]-5,$size));$height=$lines*$line+4;$y=$this->GetY();
+            if($y+$height>273)throw new RuntimeException('Compact table overflow.');$x=18;
+            foreach($cells as $i=>$cell){$this->SetFillColor($head?15:($index%2?248:239),$head?23:($index%2?250:245),$head?43:($index%2?252:250));$this->SetDrawColor(218,226,235);if(isset($attention) && $attention)$this->SetFillColor(255,244,240);$this->Rect($x,$y,$widths[$i],$height,'DF');
+                $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica',$head?'B':'',$size);$this->SetTextColor($head?255:55,$head?255:65,$head?255:81);$this->MultiCell($widths[$i]-5,$line,pdf_text($cell),0,'L');$x+=$widths[$i];}
+            $this->SetXY(18,$y+$height);
+        };$draw($headers,true);foreach($rows as $i=>$row)$draw($row,false,$i);$this->Ln(2);
+    }
+    public function FitDomain(array $rows,string $note): void {
+        $widths=[74,60,40];$headers=['Observation','Suggested plan / check','KRA / KPI'];
+        foreach([[9,4],[9,3.8]] as [$size,$line]){
+            $reserve=$this->Lines($note,false,174,9)*4.1+17;
+            if($this->GetY()+$this->CompactHeight($rows,$widths,$size,$line)+8.6+$reserve<=273){$this->CompactTable($headers,$rows,$widths,$size,$line);$this->Small($note);return;}
+        }
+        throw new RuntimeException('Domain content exceeds the compact report layout.');
+    }
     public function Block(array $paragraphs,string $continuation=''): void {
         $height=5;foreach($paragraphs as $i=>$p)$height+=$this->Lines($p,$i===0)*5.2+1.5;
         if($this->GetY()+min($height,210)>$this->h-$this->bMargin){$this->AddPage();if($continuation!=='')$this->Paragraph($continuation.' / continued',true);}
@@ -104,104 +144,106 @@ class CustomerReportPDF extends AssessmentPDF {
     }
 }
 function report_number($value): string {return $value===null?'Not available':number_format($value,2);}
+/** Short excerpts are labelled in the PDF; the complete submitted text stays in private storage. */
+function report_excerpt(string $text,int $limit): string {
+    $text=preg_replace('/\s+/u',' ',trim($text));
+    preg_match_all('/./us',$text,$chars);
+    return count($chars[0])<=$limit?$text:implode('',array_slice($chars[0],0,$limit)).' [excerpt]';
+}
+function report_short_action(array $finding): string {
+    // The first sentence contains the catalogue's question-specific action; score intent is displayed separately.
+    $action=preg_split('/(?<=[.!?])\s+/u',$finding['recommendation'],2)[0];
+    $intent=[1=>'Establish the routine. ',2=>'Standardise and assign responsibility. ',3=>'Add completion checks. '];
+    return (is_int($finding['response'])?($intent[$finding['response']]??''):'').$action;
+}
+/** Exactly eight pages: profile, summary, five domains, action plan and review. */
 function customer_report_pdf(array $report,array $labels): string {
-    $s=$report['submission'];$pdf=new CustomerReportPDF();$pdf->SetMargins(18,18,18);$pdf->SetAutoPageBreak(true,24);$pdf->AliasNbPages();
+    $s=$report['submission'];$pdf=new CustomerReportPDF();$pdf->SetMargins(18,18,18);$pdf->SetAutoPageBreak(false);$pdf->AliasNbPages();
     $pdf->SetTitle('My Physio Saathi - Clinic Workflow Report');$pdf->SetAuthor('My Physio Saathi');
-    $pdf->AddPage();$pdf->Ln(12);$pdf->Section('Self-reported assessment',isset($report['domain_plans'])?'Clinic workflow improvement roadmap':'Your clinic workflow report');$pdf->Heading($s['fields']['clinic_name']);
-    $pdf->Paragraph('Assessment reference: '.$s['id']);$pdf->Paragraph('Submitted: '.$s['submitted_at']);
-    $pdf->Tiles([['STATUS',$report['status']==='Insufficient information'?'Insufficient':($report['status']==='Provisional'?'Provisional':'Self-reported')],['HORIZON',isset($report['domain_plans'])?'90 days':'Assessment'],['ASSESSMENT','25 questions']]);$pdf->Ln(3);
-    $pdf->Paragraph('Report status: '.$report['status'],true);
-    foreach($labels as $key=>$label)$pdf->Paragraph($label.': '.($s['fields'][$key]??'Not supplied'));
-    $pdf->Ln(5);$pdf->Paragraph('Assessment version: '.$report['versions']['assessment'].' | Scoring rules: '.$report['versions']['scoring'].' | Recommendation catalogue: '.$report['versions']['recommendations']);
-    if(isset($report['versions']['roadmap']))$pdf->Paragraph('Roadmap measures: '.$report['versions']['roadmap'].' | Presentation: '.$report['versions']['presentation']);
-    $pdf->Ln(5);$pdf->Paragraph($report['disclaimer']);
-    $pdf->Paragraph('Scoring and eligibility rules are internal product rules, not validated industry thresholds. Paper-based and digital processes are assessed on the same basis.');
-    $scaleLabels=[];foreach($report['rating_scale'] as $score=>$scale)$scaleLabels[]=$score.' '.$scale['level'];$pdf->Paragraph('Ratings: '.implode('; ',$scaleLabels).'. Not sure and Not applicable are not numeric scores.');
+    $pdf->AddPage();$pdf->Ln(8);$pdf->Section('Your clinic assessment','Clinic workflow improvement roadmap');
+    $pdf->Small('A practical review of your reported routines, with priorities and suggested checks.');$pdf->Ln(4);
+    $rows=[['Assessment reference',$s['id']],['Submission date',$s['submitted_at']]];
+    foreach($labels as $key=>$label)$rows[]=[$label,report_excerpt((string)($s['fields'][$key]??'Not supplied'),$key==='location'?250:254)];
+    $pdf->Profile($rows);
+    $pdf->Ln(6);$pdf->Panel('Report status: '.$report['status'],$report['disclaimer']);
+    if($pdf->GetY()<220){$pdf->Small('Read this report in eight pages',true);
+    $pdf->Small('2  Summary, scores and items to confirm
+3-7  One page per domain: observations, actions and measures
+8  Suggested action plan and 90-day review');}
+    $pdf->Ln(3);
+    $pdf->Small('Assessment version: '.$report['versions']['assessment'].' | Scoring rules: '.$report['versions']['scoring'].' | Recommendation catalogue: '.$report['versions']['recommendations']);
+    $pdf->Small('Roadmap measures: '.$report['versions']['roadmap'].' | Presentation: '.$report['versions']['presentation']);
+    $pdf->Small('Long profile fields or explanations may appear as labelled excerpts. Full original text is retained in the private assessment record.');
+
     $pdf->AddPage();$pdf->Section('Executive summary','Where to focus first');
     $pdf->Tiles([['NUMERIC AVERAGE',$report['overall_eligible']?report_number($report['overall_average']).' / 5':'Not available'],['RESPONSE COVERAGE',$report['coverage']===null?'Not available':report_number($report['coverage']).'%'],['REPORT STATUS',$report['status']==='Insufficient information'?'Insufficient':($report['status']==='Provisional'?'Provisional':'Self-reported')]]);
-    $pdf->Paragraph('Report status: '.$report['status'],true);
-    $pdf->Paragraph(($report['counts']['unknown']+$report['counts']['na'])>0?'Unknown, missing or unreviewed N/A responses remain. Confirm these before relying on the assessment.':'All questions have numeric responses. These remain self-reported, rather than independently verified.');
-    if(!$report['overall_eligible'])$pdf->Paragraph('An overall average is not displayed because coverage or domain requirements are not met.',true);
-    $pdf->Paragraph($report['overall_interpretation']);
-    $pdf->Paragraph($report['coverage_label'].': '.($report['coverage']===null?'Not available (all responses N/A)':report_number($report['coverage']).'%'));
-    $c=$report['counts'];$pdf->Paragraph('Numeric: '.$c['numeric'].' | Unknown: '.$c['unknown'].' | N/A: '.$c['na'].' | Missing: '.$c['missing']);
-    $pdf->Paragraph('The average is the sum of numeric responses divided by their count. Coverage measures numeric responses among the questions not marked N/A. Interpretations use unrounded averages.');
-    foreach(['strongest_domain'=>'Strongest scored domain','weakest_domain'=>'Weakest scored domain'] as $key=>$label){$d=$report[$key];$pdf->Paragraph($label.': '.($d?$d['code'].' / '.$d['title'].' ('.report_number($d['average']).' / 5)':'Not available with sufficient numeric responses'));}
-    $pdf->Ln(4);$pdf->Paragraph('Numeric priorities to consider',true);
-    if(!$report['priority_findings'])$pdf->Paragraph('No numeric gaps scoring 1, 2 or 3 were reported. Confirmation tasks may still be needed.');
-    foreach($report['priority_findings'] as $f)$pdf->Panel($f['id'].' / '.$f['title'].($f['control_gap']?' / IMPORTANT CONTROL GAP':''),'Submitted response: '.$f['response_label'].'. '.$f['category'].'. Possible consequence: '.$f['consequence'],$f['control_gap']);
-    $pdf->AddPage();$pdf->Section('Baseline','Domain scorecard');
-    foreach($report['domains'] as $d)$pdf->Block([$d['code'].' / '.$d['title'],'Numeric responses: '.$d['counts']['numeric'].' / 5 | Average: '.report_number($d['average']).($d['average']!==null?' / 5':''),'Interpretation: '.$d['interpretation'],'Unresolved responses: '.$d['unresolved_count'].' (Unknown: '.$d['counts']['unknown'].'; N/A: '.$d['counts']['na'].'; Missing: '.$d['counts']['missing'].')']);
-    $pdf->Paragraph('A domain needs at least three numeric responses for an interpretation. Unresolved responses include all respondent-selected N/A answers pending applicability review. A high overall average does not remove an important control gap.');
-    if(isset($report['domain_plans']))foreach($report['domains'] as $d)report_domain_overview($pdf,$report,$d);
-    foreach($report['domains'] as $d){
-        $heading='Domain '.$d['code'].' / '.$d['title'];$pdf->AddPage();$pdf->Section('Detailed observation register',$heading);
-        $pdf->Paragraph('Average: '.report_number($d['average']).($d['average']!==null?' / 5':'').' | '.$d['interpretation']);
-        $domainNote=$report['submission']['domain_notes'][$d['code']];if(trim($domainNote)!=='')$pdf->Block(['Submitted domain explanation (not independently verified)',$domainNote,'This domain-level explanation is not assumed to support every question.'],$heading);
-        foreach($report['findings'] as $f){if($f['domain']!==$d['code'])continue;
-            $parts=[$f['id'].' / '.$f['title'].($f['control_gap']?' / IMPORTANT CONTROL GAP':''),'Question: '.$f['question'],(is_int($f['response'])?'The clinic rated this process ':'Submitted response: ').$f['response_label'].'. '.$f['category'].'.'];
-            if($f['evidence_label']!==null)$parts[]='Evidence: '.$f['evidence_label'];
-            if(is_int($f['response'])){
-                $parts[]=$f['response']===5?'The response indicates a strong reported process. It has not been independently verified.':'The response indicates: '.$f['category'].'.';
-                $parts[]='This may lead to: '.$f['consequence'];
-            }else $parts[]='This response does not establish a process failure. Confirmation is required.';
-            $parts[]='Recommendation: '.$f['recommendation'];
-            if(isset($f['software_note']))$parts[]='Relevant verified capability: '.$f['software_note'];
-            $parts[]='Suggested role: '.$f['role'].' | Suggested timing: '.$f['timing'];
-            $parts[]='Completion check: '.$f['completion_check'];$pdf->Block($parts,$heading);
-        }
-    }
-    $pdf->AddPage();$pdf->Heading('Items to confirm');$pdf->Paragraph('Unknown and missing answers are questions to check, not demonstrated failures. Important control questions are listed first.');
-    if(!$report['items_to_confirm'])$pdf->Paragraph('No unknown or missing responses.');
-    foreach($report['items_to_confirm'] as $f)$pdf->Block([$f['id'].' / '.$f['title'].($f['important_control']?' / Important control to confirm':''),'Question: '.$f['question'],'Submitted response: '.$f['response_label'],'Verification task: '.$f['recommendation']],'Items to confirm');
-    $pdf->Paragraph('N/A applicability review',true);
-    if(!$report['applicability_review'])$pdf->Paragraph('No N/A responses.');
-    foreach($report['applicability_review'] as $f)$pdf->Block([$f['id'].' / '.$f['title'],'Question: '.$f['question'],'Submitted response: '.$f['response_label'],'Applicability review: '.$f['recommendation']],'Applicability review');
-    $pdf->AddPage();$pdf->Heading('Suggested 30-day action plan');$pdf->Paragraph('These roles and timings are suggestions relative to report delivery, not commitments made by the clinic. The actions remain useful without purchasing software.');
-    if(!$report['action_plan'])$pdf->Paragraph('No supported improvement or confirmation actions were identified. Continue periodic checks of the processes you reported as reliable.');
-    $actionRows=[];foreach($report['action_plan'] as $i=>$f)$actionRows[]=[($i+1).'. '.$f['id'].' / '.$f['title'].' | '.$f['response_label'],$f['recommendation'],$f['role'],$f['timing'],$f['completion_check']];
-    if($actionRows)$pdf->Table(['Priority / basis','Suggested action','Suggested owner','Timing','Completion check'],$actionRows,[30,62,32,22,28],'Suggested 30-day action plan');
-    if(isset($report['kpi_register']))report_roadmap_sections($pdf,$report);
-    $pdf->AddPage();$pdf->Heading('Optional next step');$pdf->Paragraph('Discuss your report');$pdf->Paragraph('If useful, discuss the findings or request a demonstration of the relevant current My Physio Saathi capabilities. The suggestions in this report do not depend on buying the system.');
-    $pdf->Paragraph('Tejas P Mehta | Call: +91 98256 47083',true);$pdf->Paragraph('Website: https://www.myphysiosaathi.in/');$pdf->Ln(8);$pdf->Paragraph($report['disclaimer']);
-    return $pdf->Output('S');
-}
+    $pdf->Small('Report status: '.$report['status'].' | '.$report['overall_interpretation'],true);
+    $c=$report['counts'];$pdf->Small('Numeric: '.$c['numeric'].' | Unknown: '.$c['unknown'].' | N/A: '.$c['na'].' | Missing: '.$c['missing']);
+    $pdf->Small($report['coverage_label'].'. Average = numeric sum / numeric count. An overall interpretation needs 80% coverage and three numeric answers per domain.');
+    $pdf->Ln(2);$rows=[];
+    foreach($report['domains'] as $d)$rows[]=[$d['code'].' / '.$d['title'],(string)$d['counts']['numeric'].' / 5',report_number($d['average']),$d['interpretation'],(string)$d['unresolved_count']];
+    $pdf->CompactTable(['Domain','Scored','Avg / 5','Interpretation','Open'],$rows,[56,18,22,57,21],9,4);
+    foreach(['strongest_domain'=>'Strongest scored domain','weakest_domain'=>'Weakest scored domain'] as $key=>$label){$d=$report[$key];$pdf->Small($label.': '.($d?$d['code'].' / '.$d['title'].' ('.report_number($d['average']).' / 5)':'Not available'));}
+    $pdf->Ln(2);$pdf->Small('Numeric priorities',true);
+    if(!$report['priority_findings'])$pdf->Small('No numeric gaps scoring 1, 2 or 3 were reported. Confirmation tasks may still be needed.');
+    foreach($report['priority_findings'] as $f)$pdf->Small($f['id'].' / '.$f['title'].' | '.$f['response_label'].($f['control_gap']?' | IMPORTANT CONTROL GAP':'').'. '.$f['category'].'.',true);
+    $pdf->Ln(2);$pdf->Small('Items to confirm',true);
+    $unknown=$report['items_to_confirm'];$controls=array_filter($unknown,fn($f)=>$f['important_control']);$others=array_filter($unknown,fn($f)=>!$f['important_control']);
+    $pdf->Small('Unknown / missing, not demonstrated failures. Important controls: '.($controls?implode(', ',array_column($controls,'id')):'None').'. Other items: '.($others?implode(', ',array_column($others,'id')):'None').'.');
+    $nas=$report['applicability_review'];$pdf->Small('Respondent-selected N/A for applicability review: '.($nas?implode(', ',array_column($nas,'id')):'None').'. See each domain for the question and task.');
+    if(isset($report['findings']['D5']) && $report['findings']['D5']['response']==='na')$pdf->Small('D5: Why is checking that an earlier clinic problem has been corrected considered inapplicable? Record and review the reason.');
+    $pdf->Small('Scoring rules are internal product rules, not validated industry thresholds. Paper and digital processes are assessed on the same basis.');
+    $pdf->Small('Unresolved counts include unknown, missing and unreviewed N/A. High averages do not remove control gaps. All scores remain self-reported. KRA = area of responsibility. KPI = progress measure.');
 
-function report_domain_overview(CustomerReportPDF $pdf,array $report,array $domain): void {
-    $code=$domain['code'];$plan=$report['domain_plans'][$code];$heading='Domain '.$code.' / '.$domain['title'];
-    $pdf->AddPage();$pdf->Section('Domain improvement plan',$heading);
-    $pdf->Paragraph('Average: '.report_number($domain['average']).($domain['average']!==null?' / 5':'').' | Numeric: '.$domain['counts']['numeric'].' of 5 | Unresolved: '.$domain['unresolved_count'],true);
-    $pdf->Paragraph($domain['interpretation']);$pdf->Paragraph('Priority observations and confirmations',true);
-    foreach($plan['observations'] as $f){
-        $label=$f['control_gap']?'IMPORTANT CONTROL GAP':(is_int($f['response'])?$f['category']:'Confirmation required, not a demonstrated failure');
-        $pdf->Panel($f['id'].' / '.$f['title'],'Submitted response: '.$f['response_label'].'. '.$label.'.'.($f['evidence_label']!==null?' Evidence: '.$f['evidence_label'].'.':''),$f['control_gap'],true);
+    foreach($report['domains'] as $d){
+        $pdf->AddPage();$pdf->Section('Domain '.$d['code'].' / observation, plan and measures',$d['title']);
+        $pdf->Small('Average: '.report_number($d['average']).($d['average']!==null?' / 5':'').' | Numeric: '.$d['counts']['numeric'].' / 5 | Unresolved: '.$d['unresolved_count'].' | '.$d['interpretation'],true);
+
+        $rows=[];
+        foreach($report['findings'] as $f){if($f['domain']!==$d['code'])continue;$m=$report['kpi_register'][$f['id']];
+            $observation=$f['id'].' / '.$f['title'].'
+'.$f['question'].'
+Response: '.$f['response_label'];
+            if($f['control_gap'])$observation.='
+IMPORTANT CONTROL GAP';
+            if(is_int($f['response']) && $f['response']<=3)$observation.='
+This may lead to: '.$f['consequence'];
+            elseif(!is_int($f['response']))$observation.='
+Confirmation required, not a proven failure.';
+            else $observation.='
+'.$f['evidence_label'];
+            $action=report_short_action($f).'
+Owner: '.$f['role'].' | '.$f['timing'].'
+Check: '.$f['completion_check'];
+            // N/A and unknown need the complete verification instruction, never an active numeric target.
+            if(!is_int($f['response']))$action=$f['recommendation'].'
+Owner: '.$f['role'].' | '.$f['timing'];
+            $measure='KRA: '.$m['kra'].'
+KPI: '.$m['kpi'].(!is_int($f['response'])?'
+'.($f['response']==='na'?'Review applicability first.':'Verify before planning.'):'');
+            $rows[]=[$observation,$action,$measure];
+        }
+        $note=$s['domain_notes'][$d['code']]??'';
+        $endText=trim($note)===''?'No domain explanation supplied. Scores are self-reported, not independently verified.':'Submitted domain explanation, not independently verified: '.report_excerpt($note,180).'. A domain note does not verify every question.';
+        $pdf->FitDomain($rows,$endText);
+        $pdf->Small('Baseline to be measured; targets to agree; actual outcomes not yet measured. For percentage KPIs, retain numerator, denominator and review period. Zero opportunities: No eligible cases. Keep patient-level evidence private.');
     }
-    $pdf->Paragraph('Suggested delivery plan',true);$rows=[];
-    foreach($plan['observations'] as $f)$rows[]=[$f['id'],$f['recommendation'],$f['role'],$f['timing']];
-    $pdf->Table(['ID','Action / workable process','Suggested owner','Suggested timing'],$rows,[12,86,42,34],$heading.' / Delivery plan');
-    $pdf->Paragraph('Suggested KRAs and KPIs',true);$rows=[];
-    foreach($plan['metrics'] as $m)$rows[]=[$m['id'].' / '.$m['kra'],$m['kpi'],($m['mode']==='Confirm before planning'?'Verify process and baseline before agreeing a target.':$m['target_for_report'])];
-    $pdf->Table(['KRA / area of responsibility','KPI / measure','Proposed target, subject to review'],$rows,[48,54,72],$heading.' / KRAs and KPIs');
-    $pdf->Paragraph('Suggested measures only. Establish baselines and agree targets before use.');
-}
-function report_roadmap_sections(CustomerReportPDF $pdf,array $report): void {
-    $pdf->AddPage();$pdf->Section('Management scorecard','Full KRA and KPI register');
-    $pdf->Panel('How to use this register','KRA means the area to improve. High reported scores can instead call for maintenance. KPI means the measure used to check progress. Suggested targets are planning proposals. Ratings out of 5 are self-reported process scores, not measured KPI baselines.');
-    $pdf->Paragraph('For percentage measures, retain the numerator, denominator and review period. For zero opportunities, report No eligible cases, not 0% or 100%. If no relevant events occur, agree a documented process test where appropriate. Keep patient-level evidence private.');
-    foreach($report['domains'] as $domain){
-        $pdf->Keep(65);$pdf->Paragraph('Domain '.$domain['code'].' / '.$domain['title'],true);$rows=[];
-        foreach($report['kpi_register'] as $m)if($m['domain']===$domain['code'])$rows[]=[$m['id']."\n".$m['mode'],$m['kra']."\nKPI: ".$m['kpi']."\nMeasure: ".$m['formula'],$m['target_for_report']."\nBaseline to be measured.",$m['role']."\nEvidence: ".$m['evidence']];
-        $pdf->Table(['ID / purpose','KRA, KPI and measurement','Proposed target / baseline','Suggested owner / evidence'],$rows,[20,60,49,45],'Full KRA and KPI register');
-    }
-    $pdf->Paragraph('Suggested cadence: weekly checks during the first 30 days, then agree a suitable review frequency. Record the actual baseline and clinic-agreed target separately from these proposals.');
-    $pdf->AddPage();$pdf->Section('First 90 days','Suggested 90-day roadmap');
-    $pdf->Paragraph('The first 30 days focus on the priority actions already listed. The next phases support consistent use and evidence review. Urgent control gaps should be addressed within their suggested early timings, rather than deferred until Day 90.');
-    foreach($report['roadmap_90'] as $phase)$pdf->Panel($phase['phase'].' / '.$phase['theme'],$phase['action']."\nEvidence to retain: ".$phase['evidence']);
-    $pdf->Panel('Proposed 90-day outcome','If the agreed actions are carried out, the clinic should have clearer responsibilities, checked processes and an evidence-based review of the selected priorities. This is an intended outcome, not a reported achievement or a guaranteed score improvement.');
-    $pdf->AddPage();$pdf->Section('Review template','Day-90 outcome review');
-    $pdf->Paragraph('Complete this section at the later review. Actual results are intentionally unfilled. Verify applicability and use the same measurement definition and review period for baseline and follow-up.');
-    $rows=[];foreach($report['day90_review'] as $row)$rows[]=[$row['id'].' / '.$row['outcome'],"Baseline to be measured\nAgreed target: To agree\nDay-90 actual: Not yet measured",$row['evidence']."\nStatus: ".$row['status']];
-    if(!$rows)$pdf->Paragraph('No supported improvement or confirmation actions were identified. Agree maintenance checks and use the KPI register to select appropriate review measures.');
-    else $pdf->Table(['Selected outcome','Baseline / agreed target / actual','Completion evidence and review status'],$rows,[48,52,74],'Day-90 outcome review');
-    $pdf->Panel('Review decision','For each selected action, record completed, in progress, not started, or inapplicable after review. Record the evidence, reviewer and next step. Repeat the assessment if useful, but do not treat a higher self-reported score as independent verification.');
+
+    $pdf->AddPage();$pdf->Section('Suggested next steps','Suggested 30-day action plan');
+    $pdf->Small('Up to five supported actions. Suggested owners and timing run from report delivery and are not clinic commitments. These actions are useful with paper records or software.');
+    $rows=[];foreach($report['action_plan'] as $i=>$f)$rows[]=[($i+1).'. '.$f['id'].' / '.$f['title'].'
+'.$f['response_label'],report_short_action($f),$f['role'].'
+'.$f['timing'],$f['completion_check']];
+    if($rows)$pdf->CompactTable(['Priority / basis','Suggested action','Owner / timing','Completion check'],$rows,[38,57,36,43],9,4);
+    else $pdf->Small('No supported improvement or confirmation actions were identified. Maintain periodic checks of the processes reported as reliable.');
+    $pdf->Ln(3);$pdf->Small('Suggested 90-day roadmap',true);
+    foreach(['Within 30 days: Confirm unknowns and applicability. Choose priorities, name owners and measure baselines.','Days 31-60: Practise the agreed routines. Check a small sample and address exceptions.','Days 61-90: Repeat the same measures. Compare baseline, agreed target and actual results; record next steps.'] as $phase)$pdf->Small($phase);
+    $pdf->Ln(3);$pdf->Small('Day-90 outcome review',true);
+    $pdf->Small('For each selected action, record: baseline, clinic-agreed target, day-90 actual, evidence, reviewer and next step. Baseline: To measure. Agreed target: To agree. Actual: Not yet measured. Status: Not yet reviewed.');
+    $pdf->Small('Intended outcome: clearer responsibilities and checked routines, subject to carrying out the agreed actions. This is not an achieved outcome or a guaranteed score improvement.');
+    $pdf->Ln(3);$pdf->Small('Optional next step',true);$pdf->Small('Discuss the findings or request a demonstration of relevant current My Physio Saathi capabilities. Buying software is optional.');
+    $pdf->Small('Tejas P Mehta | Call: +91 98256 47083 | www.myphysiosaathi.in/',true);
+    $pdf->Small($report['disclaimer']);
+    if($pdf->PageNo()!==8 || $pdf->GetY()>273)throw new RuntimeException('Compact report layout exceeded the eight-page limit.');
+    return $pdf->Output('S');
 }
