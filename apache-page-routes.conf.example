@@ -1,0 +1,5 @@
+# Merge these lines into your EXISTING root .htaccess. Preserve HTTPS/www redirects.
+# Apache mod_dir and mod_alias are normally available on PHP hosting.
+DirectoryIndex index.php index.html
+RedirectMatch 301 ^/index\.html$ https://www.myphysiosaathi.in/
+RedirectMatch 301 ^/pricing\.html$ https://www.myphysiosaathi.in/pricing.php

@@ -1,6 +1,5 @@
 <?php
 // Same-origin homepage enquiry endpoint. Reuses the assessment's private SMTP settings.
-use PHPMailer\PHPMailer\PHPMailer;
 ini_set('session.use_strict_mode','1');
 session_name('MPS_ENQUIRY');
 session_set_cookie_params(['httponly'=>true,'secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off','samesite'=>'Lax','path'=>'/']);
@@ -48,33 +47,45 @@ try {
     if($fields['email']!==''&&!filter_var($fields['email'],FILTER_VALIDATE_EMAIL))$errors['email']='Enter a valid email address.';
     $digits=preg_replace('/\D/','',$fields['mobile_number']);
     if(!preg_match('/^[+\d ().-]+$/',$fields['mobile_number'])||strlen($digits)<7||strlen($digits)>15)$errors['mobile_number']='Enter a mobile number with 7–15 digits.';
-    if(!in_array($fields['enquiry_type'],['Product demo','Free clinic workflow audit'],true))$errors['enquiry_type']='Select a valid enquiry type.';
+    if(!in_array($fields['enquiry_type'],['Product demo','Free clinic workflow audit','Free clinic workflow assessment'],true))$errors['enquiry_type']='Select a valid enquiry type.';
     if($errors)respond(422,['ok'=>false,'message'=>'Please check the highlighted fields.','errors'=>$errors]);
     $requestId=$input['request_id']??'';
     if(!is_string($requestId)||!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestId))respond(400,['ok'=>false,'message'=>'Reload this page before submitting.']);
     // A retry after an uncertain network response does not send the same email again.
     $hash=hash('sha256',json_encode($fields));
     $sent=$_SESSION['sent'][$requestId]??null;
-    if($sent){
-        if($sent['hash']!==$hash)respond(409,['ok'=>false,'message'=>'Reload the page to send a changed enquiry.']);
-        respond(200,['ok'=>true,'message'=>'Your enquiry has been sent. Tejas will contact you using the details provided.']);
+    $needsAssessment=$fields['enquiry_type']!=='Product demo';
+    if($sent && $sent['hash']!==$hash)respond(409,['ok'=>false,'message'=>'Reload the page to send a changed enquiry.']);
+    // Older completed session entries have no per-recipient flags. Do not resend them.
+    if($sent && !array_key_exists('admin_sent',$sent))respond(200,['ok'=>true,'message'=>'Your enquiry has been sent. Tejas will contact you using the details provided.']);
+    if(!$sent){
+        if(!rate_allowed($config))respond(429,['ok'=>false,'message'=>'Too many requests. Please try again in one hour or call Tejas.']);
+        $_SESSION['sent'][$requestId]=['hash'=>$hash,'admin_sent'=>false,'assessment_sent'=>!$needsAssessment];
     }
-    if(!rate_allowed($config))respond(429,['ok'=>false,'message'=>'Too many requests. Please try again in one hour or call Tejas.']);
-    require_once __DIR__.'/assessment/lib/PHPMailer/src/Exception.php';
-    require_once __DIR__.'/assessment/lib/PHPMailer/src/PHPMailer.php';
-    require_once __DIR__.'/assessment/lib/PHPMailer/src/SMTP.php';
-    $mail=new PHPMailer(true);$mail->isSMTP();
-    $mail->Host=$config['smtp_host'];$mail->Port=(int)$config['smtp_port'];$mail->SMTPAuth=$config['smtp_auth']??true;
-    $mail->Username=$config['smtp_username'];$mail->Password=$config['smtp_password'];$mail->SMTPSecure=$config['smtp_encryption'];
-    $mail->SMTPAutoTLS=true;$mail->Timeout=20;$mail->CharSet='UTF-8';$mail->SMTPDebug=0;
-    $mail->setFrom($config['from_email'],$config['from_name']??'My Physio Saathi');
-    $mail->addAddress($config['admin_email']);$mail->addReplyTo($fields['email'],$fields['full_name']);
-    $mail->Subject='My Physio Saathi | '.$fields['enquiry_type'];
-    $mail->Body="New website enquiry\n\n";
-    foreach(['full_name'=>'Full name','clinic_name'=>'Clinic name','city'=>'City','mobile_number'=>'Mobile number','email'=>'Email address','enquiry_type'=>'Enquiry type','message'=>'Message'] as $key=>$label)$mail->Body.=$label.': '.$fields[$key]."\n";
-    $mail->Body.="\nReceived: ".(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST';
-    $mail->send();
-    $_SESSION['sent'][$requestId]=['hash'=>$hash];
-    if(count($_SESSION['sent'])>20)$_SESSION['sent']=array_slice($_SESSION['sent'],-20,null,true);
-    respond(200,['ok'=>true,'message'=>'Your enquiry has been sent. Tejas will contact you using the details provided.']);
+    require_once __DIR__.'/assessment/mail.php';
+    require_once __DIR__.'/includes/enquiry-mail.php';
+    if(!$_SESSION['sent'][$requestId]['admin_sent']){
+        $mail=assessment_mailer($config);
+        $mail->addAddress($config['admin_email']);$mail->addReplyTo($fields['email'],$fields['full_name']);
+        $mail->Subject='My Physio Saathi | '.$fields['enquiry_type'];
+        $mail->Body="New website enquiry\n\n";
+        foreach(['full_name'=>'Full name','clinic_name'=>'Clinic name','city'=>'City','mobile_number'=>'Mobile number','email'=>'Email address','enquiry_type'=>'Enquiry type','message'=>'Message'] as $key=>$label)$mail->Body.=$label.': '.$fields[$key]."\n";
+        $mail->Body.="\nReceived: ".(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST';
+        $mail->send();
+        $_SESSION['sent'][$requestId]['admin_sent']=true;
+    }
+    if($needsAssessment && !$_SESSION['sent'][$requestId]['assessment_sent']){
+        try{
+            deliver_assessment_invitation($config,$fields);
+            $_SESSION['sent'][$requestId]['assessment_sent']=true;
+        }catch(Throwable $e){
+            error_log('Assessment invitation delivery failed.');
+            respond(503,['ok'=>false,'message'=>'Your enquiry has been received, but the assessment-link email could not be sent. Please retry this submission to resend the link, or call +91 98256 47083.']);
+        }
+    }
+    if(count($_SESSION['sent'])>20){
+        // Retain failed deliveries; only evict old completed requests.
+        foreach($_SESSION['sent'] as $id=>$entry){if(count($_SESSION['sent'])<=20)break;if(($entry['admin_sent']??true)&&($entry['assessment_sent']??true))unset($_SESSION['sent'][$id]);}
+    }
+    respond(200,['ok'=>true,'message'=>$needsAssessment?'Your enquiry has been sent. We have also emailed your clinic assessment link. Check your inbox and spam folder.':'Your enquiry has been sent. Tejas will contact you using the details provided.']);
 }catch(Throwable $e){error_log('Homepage enquiry delivery failed.');respond(500,['ok'=>false,'message'=>'Your request could not be sent. Please try again later or call +91 98256 47083.']);}

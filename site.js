@@ -67,7 +67,7 @@ form.addEventListener('submit',async e=>{
   if(!configured){alert.textContent='Online enquiries are not available yet. Please call +91 98256 47083.';alert.hidden=false;return;}
   if(form.elements.website.value){alert.textContent='Your request could not be sent. Please call Tejas.';alert.hidden=false;return;}
   sending=true;submit.disabled=true;submit.textContent='Sending…';
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
   try{
     const data=Object.fromEntries(new FormData(form));for(const key of Object.keys(data))data[key]=String(data[key]).trim();
     const payload=JSON.stringify(data);

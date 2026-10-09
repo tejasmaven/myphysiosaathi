@@ -1,0 +1,1 @@
+<footer class="site-footer"><div class="site-chrome footer-inner"><p>My Physio Saathi<br><span>Every patient visit, connected.</span></p><p>Tejas P Mehta<br><a href="tel:+919825647083">Call: +91 98256 47083</a></p><a href="<?=($sitePage??'')==='assessment'?'#main':'#opening'?>">Back to top</a></div></footer>

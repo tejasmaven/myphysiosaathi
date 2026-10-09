@@ -3,7 +3,7 @@ require_once __DIR__.'/lib/PHPMailer/src/Exception.php';
 require_once __DIR__.'/lib/PHPMailer/src/PHPMailer.php';
 require_once __DIR__.'/lib/PHPMailer/src/SMTP.php';
 use PHPMailer\PHPMailer\PHPMailer;
-function deliver_assessment(array $config, array $submission, string $recipient, bool $admin, string $pdf): void {
+function assessment_mailer(array $config): PHPMailer {
     $mail=new PHPMailer(true);
     $mail->isSMTP();$mail->Host=$config['smtp_host'];$mail->Port=(int)$config['smtp_port'];
     $mail->SMTPAuth=$config['smtp_auth'] ?? true;
@@ -11,6 +11,10 @@ function deliver_assessment(array $config, array $submission, string $recipient,
     $mail->SMTPSecure=$config['smtp_encryption'];$mail->SMTPAutoTLS=true;
     $mail->Timeout=20;$mail->CharSet='UTF-8';$mail->SMTPDebug=0;
     $mail->setFrom($config['from_email'],$config['from_name']);
+    return $mail;
+}
+function deliver_assessment(array $config, array $submission, string $recipient, bool $admin, string $pdf): void {
+    $mail=assessment_mailer($config);
     $mail->addAddress($recipient);
     if($admin)$mail->addReplyTo($submission['fields']['email'],$submission['fields']['doctor_name']);
     $mail->Subject=($admin?'New clinic workflow report':'Your clinic workflow report').' | '.$submission['id'];

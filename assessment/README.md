@@ -12,7 +12,7 @@ The meaning of several IDs changed: A1 retrieval with absence cover; A3 duplicat
 
 ## Deployment
 
-Upload `free-assesment.php` and the entire `assessment/` directory, including the new `rating-scale.php`, beside the existing landing page. Preserve ignored SMTP configuration and existing root `.htaccess` / virtual-host settings. The live server is not deployed automatically by a GitHub push.
+Upload `free-assesment.php`, the entire `assessment/` directory, the shared `includes/` directory and `shared-chrome.css`, beside the landing page. The assessment header, footer and tracking now depend on those shared includes. Preserve ignored SMTP configuration and existing root `.htaccess` / virtual-host settings. The live server is not deployed automatically by a GitHub push.
 
 Requirements: PHP 8.1+, sessions, OpenSSL, iconv, zlib, HTTPS and outbound SMTP access. PHPMailer 7.1.1 and FPDF 1.86 remain bundled without Composer. No external AI API, database or build process is introduced.
 
