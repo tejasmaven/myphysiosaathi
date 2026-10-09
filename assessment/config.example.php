@@ -1,6 +1,9 @@
 <?php
 // Copy outside the public web directory, e.g. /var/www/private/myphysiosaathi-assessment.php.
-// Point ASSESSMENT_CONFIG_PATH at it in Apache/PHP environment. Never commit real credentials.
+// Point ASSESSMENT_CONFIG_PATH at it in Apache/PHP environment, or copy to assessment/config.php.
+// assessment/config.local.php is also supported and takes precedence over config.php.
+// SMTP_* environment variables can override these values. See SMTP_SETUP.md.
+// Never commit real credentials.
 return [
     'enabled' => false, // Enable only after configuring and testing delivery.
     'smtp_host' => 'smtp.gmail.com',

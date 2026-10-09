@@ -26,9 +26,9 @@ function rate_allowed(array $config): bool {
     ftruncate($fh,0);rewind($fh);fwrite($fh,json_encode($items));flock($fh,LOCK_UN);fclose($fh);return $allowed;
 }
 try {
-    $configPath=getenv('ASSESSMENT_CONFIG_PATH') ?: __DIR__.'/assessment/config.local.php';
-    $config=is_file($configPath)?require $configPath:[];
-    $ready=is_array($config)&&($config['enabled']??false)&&!empty($config['smtp_host'])&&!empty($config['smtp_username'])&&!empty($config['smtp_password'])&&filter_var($config['from_email']??'',FILTER_VALIDATE_EMAIL)&&filter_var($config['admin_email']??'',FILTER_VALIDATE_EMAIL);
+    require_once __DIR__.'/assessment/config-loader.php';
+    $config=assessment_load_config();
+    $ready=assessment_config_ready($config);
     if(!isset($_SESSION['csrf'])){$_SESSION['csrf']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();}
     $method=$_SERVER['REQUEST_METHOD'];
     if($method==='GET')respond(200,['ok'=>true,'configured'=>(bool)$ready,'csrf'=>$_SESSION['csrf']]);

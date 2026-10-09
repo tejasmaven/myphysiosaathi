@@ -13,7 +13,7 @@ Entry page: `free-assesment.php` (the requested spelling). Upload that file and 
 
 1. Copy `assessment/config.example.php` to a private path outside DocumentRoot, for example `/var/www/private/myphysiosaathi-assessment.php`.
 2. Enter the Gmail username, Gmail App Password, matching from_email and the admin recipient. Leave `enabled` false while preparing.
-3. Set the Apache environment variable `ASSESSMENT_CONFIG_PATH` to that absolute private file path. Alternatively use the ignored `assessment/config.local.php`; keeping credentials outside the web directory is recommended.
+3. Set the Apache environment variable `ASSESSMENT_CONFIG_PATH` to that absolute private file path. Alternatively keep your existing `assessment/config.php`, or use `assessment/config.local.php`. Both are ignored by Git. `config.local.php` takes precedence over `config.php`; keeping credentials outside the web directory is recommended.
 4. Use smtp.gmail.com, port 587 and tls, or port 465 and ssl. Keep certificate verification enabled.
 5. Ensure state_directory is writable by the PHP user and is outside DocumentRoot. The application writes rate-limit timestamps here, not reports or answers.
 6. Set enabled to true for a controlled real test. Complete the form, verify both inboxes and their PDF attachments, and confirm the success message. Keep the page unavailable to visitors until this test passes. Disable again if a test fails.
@@ -34,7 +34,7 @@ Each validated submission generates a reference and PDF. Separate PHPMailer mess
 
 If only one email succeeds, retry sends only the failed copy. Validated answers are frozen in the private PHP session after the first send attempt. They are removed from that session on success. Pending submissions are retained until retry or session expiry. No public PDF URL or permanent report archive is created. Configure normal session garbage collection and short retention on the server.
 
-PHP server-side processing is required. This page will not process submissions when opened from a local file or deployed to static-only hosting. Existing homepage form delivery remains independent.
+PHP server-side processing is required. This page will not process submissions when opened from a local file or deployed to static-only hosting. The homepage enquiry and assessment share this same configuration loader. See `SMTP_SETUP.md` for environment variables and lookup precedence.
 
 ## Checks completed
 

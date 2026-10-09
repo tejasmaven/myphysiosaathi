@@ -26,10 +26,9 @@ function permit_submission(array $config): bool {
     $ok=count($entries)<6;if($ok)$entries[]=time();
     ftruncate($fh,0);rewind($fh);fwrite($fh,json_encode($entries));flock($fh,LOCK_UN);fclose($fh);return $ok;
 }
-$configPath=getenv('ASSESSMENT_CONFIG_PATH') ?: __DIR__.'/config.local.php';
-$config=is_file($configPath)?require $configPath:[];
-$config=is_array($config)?$config:[];
-$ready=($config['enabled']??false) && !empty($config['smtp_host']) && !empty($config['smtp_username']) && !empty($config['smtp_password']) && filter_var($config['admin_email']??'',FILTER_VALIDATE_EMAIL) && filter_var($config['from_email']??'',FILTER_VALIDATE_EMAIL);
+require_once __DIR__.'/config-loader.php';
+$config=assessment_load_config();
+$ready=assessment_config_ready($config);
 if(!isset($_SESSION['token'])){$_SESSION['token']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();}
 if($_SERVER['REQUEST_METHOD']==='POST'){
     $postedToken=is_string($_POST['csrf']??null)?$_POST['csrf']:'';

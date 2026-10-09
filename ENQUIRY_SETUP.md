@@ -11,7 +11,8 @@ The homepage now submits to enquiry.php on the same website. The external email 
 
 The endpoint reuses the working assessment SMTP configuration:
 - ASSESSMENT_CONFIG_PATH environment variable, if configured.
-- Otherwise assessment/config.local.php.
+- Otherwise assessment/config.local.php, then assessment/config.php.
+- SMTP environment variables override the loaded settings; see SMTP_SETUP.md.
 
 Keep your actual private configuration unchanged. No SMTP password or API key is committed. Both forms use the same sender and admin_email.
 

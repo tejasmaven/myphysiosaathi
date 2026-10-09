@@ -9,3 +9,12 @@ config.local.js
 assessment/config.local.php
 assessment/private/
 assessment/reports/
+
+# Private PHP SMTP configuration. Only blank config.example.php is committed.
+**/config.php
+**/config.local.php
+**/config.*.local.php
+**/smtp-config.php
+**/smtp_config.php
+assessment/smtp.php
+myphysiosaathi-assessment.php
