@@ -54,11 +54,15 @@ with tempfile.TemporaryDirectory(prefix='mps-integration-') as temp:
   fixture={'A':[3,3,3,4,4],'B':[4,4,5,5,'unsure'],'C':['unknown',4,3,2,1],'D':[2,3,4,5,'na'],'E':[4,3,5,3,4]}
   for domain,values in fixture.items():
    for i,value in enumerate(values):data['answers['+domain+str(i+1)+']']=str(value)
-  data['notes[A3]']='Optional note <script>alert(2)</script>'
+  data['domain_notes[A]']='Optional domain explanation <script>alert(2)</script>'
   bad=dict(data);bad['csrf']='bad';assert 'session has expired' in post(bad) and not captured
-  bad=dict(data);del bad['answers[A1]'];html=post(bad);assert 'Choose one response' in html and '&lt;script&gt;' in html and '<script>alert(1)</script>' not in html
+  bad=dict(data);del bad['answers[A1]'];html=post(bad);assert 'Choose one valid response for A1' in html and '&lt;script&gt;' in html and '<script>alert(1)</script>' not in html
   bad=dict(data);bad['email']='bad';assert 'valid email address' in post(bad)
-  bad=dict(data);bad['answers[A1]']='999';assert 'invalid or too long' in post(bad)
+  bad=dict(data);bad['answers[A1]']='999';assert 'Choose one valid response for A1' in post(bad)
+  bad=dict(data);bad['answers[Z1]']='3';assert 'Unexpected question IDs' in post(bad) and not captured
+  bad=dict(data);bad['domain_notes[A]']='é'*2001;assert 'at most 2,000 characters' in post(bad) and not captured
+  bad=dict(data);bad['answers[A1][junk]']='3';del bad['answers[A1]'];assert 'Choose one valid response for A1' in post(bad) and not captured
+  bad=dict(data);bad['beds']='-1';assert 'non-negative whole number' in post(bad) and not captured
   fail_admin[0]=True;html=post(data);assert 'Retry report delivery' in html and len(captured)==1
   records=list((temp/'reports').glob('*.json'));assert len(records)==1
   first=json.loads(records[0].read_text());ref=first['reference'];pdf=(temp/'reports'/ (ref+'.pdf')).read_bytes()
@@ -77,11 +81,11 @@ with tempfile.TemporaryDirectory(prefix='mps-integration-') as temp:
   try:
    import fitz
    doc=fitz.open(stream=pdf,filetype='pdf');text=''.join(page.get_text() for page in doc)
-   for required in ['3.55 / 5','91.67%','Provisional','IMPORTANT CONTROL GAP','C4','C5','D1','C1','B5','D5','Suggested 30-day action plan','Scoring rules: 1.0.0','Full KRA and KPI register','Day-90 outcome review','A practical clinic improvement roadmap']:assert required in text,required
-   assert '125' not in text and 'why routine owner review' in text
+   for required in ['3.55 / 5','91.67%','Provisional','IMPORTANT CONTROL GAP','C4','C5','D1','C1','B5','D5','Suggested 30-day action plan','Scoring rules: 2.0.0','Full KRA and KPI register','Day-90 outcome review','Suggested 90-day roadmap']:assert required in text,required
+   assert '125' not in text and 'checking that an earlier clinic problem' in text
   except ImportError:print('PyMuPDF unavailable: attachment bytes checked, text extraction skipped.')
   # Replayed successful POST has an expired token and cannot create another record.
   assert 'session has expired' in post(data) and len(list((temp/'reports').glob('*.json')))==1
-  print('PASS: real form validation/escaping, legacy normalization, fixture scoring, PHPMailer dual attachments, partial SMTP failure, immutable retry, one private record and replay rejection.')
+  print('PASS: real form validation/escaping, supported normalization, fixture scoring, PHPMailer dual attachments, partial SMTP failure, immutable retry, one private record and replay rejection.')
  finally:
   proc.terminate();proc.wait(timeout=5);server.shutdown();server.server_close();log.close()

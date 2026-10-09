@@ -7,9 +7,9 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 $domains=json_decode(file_get_contents(__DIR__.'/questions.json'),true,512,JSON_THROW_ON_ERROR);
-$labels=['clinic_name'=>'Clinic name','doctor_name'=>'Dr full name','location'=>'Location / area / address','city'=>'City','mobile'=>'Mobile number','email'=>'Email address','beds'=>'Number of beds / treatment couches'];
-$ratings=['1'=>'1 - Very low','2'=>'2 - Low','3'=>'3 - Moderate','4'=>'4 - High','5'=>'5 - Very high','unknown'=>'Not sure','na'=>'N/A'];
-$values=array_fill_keys(array_keys($labels),'');$answers=[];$notes=[];$errors=[];$status='';
+$labels=['clinic_name'=>'Clinic name','doctor_name'=>'Doctor full name','location'=>'Location / area / address','city'=>'City','mobile'=>'Mobile number','email'=>'Email address','beds'=>'Number of beds / treatment couches'];
+$ratingScale=require __DIR__.'/rating-scale.php';$ratings=[];foreach($ratingScale as $value=>$item)$ratings[$value]=$value.' - '.$item['level'];$ratings['unknown']='Not sure';$ratings['na']='Not applicable';
+$values=array_fill_keys(array_keys($labels),'');$answers=[];$domainNotes=array_fill_keys(['A','B','C','D','E'],'');$errors=[];$status='';
 function esc($value): string { return htmlspecialchars((string)$value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function input_text($value,int $max,bool $multiline=false): string {
     if(!is_string($value))throw new InvalidArgumentException('Invalid input type.');
@@ -44,14 +44,19 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             }
             if($values['email']!==''&&!filter_var($values['email'],FILTER_VALIDATE_EMAIL))$errors['email']='Please enter a valid email address.';
             if($values['mobile']!==''&&!preg_match('/^(?:\+91[ -]?)?[6-9][0-9]{9}$/',preg_replace('/[ ()-]/','',$values['mobile'])))$errors['mobile']='Enter a valid Indian mobile number, with or without +91.';
-            if(!preg_match('/^\d{1,4}$/',$values['beds']))$errors['beds']='Enter a whole number from 0 to 9999.';
-            $postedAnswers=$_POST['answers']??[];$postedNotes=$_POST['notes']??[];
-            if(!is_array($postedAnswers)||!is_array($postedNotes))throw new InvalidArgumentException('Invalid answers.');
-            foreach($domains as $d)foreach($d['questions'] as $id=>$q){
-                $raw=input_text($postedAnswers[$id]??'',10);
-                if($raw===''){$answers[$id]='';$errors[$id]='Choose one response for this question.';}
-                else $answers[$id]=assessment_normalize_answer($raw);
-                $notes[$id]=input_text($postedNotes[$id]??'',600,true);
+            try{assessment_normalize_beds($values['beds']);}catch(InvalidArgumentException $e){$errors['beds']='Enter a non-negative whole number; 0 is valid.';}
+            $postedAnswers=$_POST['answers']??[];$postedNotes=$_POST['domain_notes']??[];
+            if(!is_array($postedAnswers)||!is_array($postedNotes))throw new InvalidArgumentException('Invalid answers or domain notes.');
+            $expected=[];foreach($domains as $d)foreach($d['questions'] as $id=>$q)$expected[]=$id;
+            if(array_diff(array_keys($postedAnswers),$expected))$errors['form']='Unexpected question IDs were submitted. Reload the form.';
+            if(array_diff(array_keys($postedNotes),array_column($domains,'code')))$errors['form']='Unexpected domain explanations were submitted. Reload the form.';
+            foreach($domains as $d){
+                foreach($d['questions'] as $id=>$q){
+                    try{$answers[$id]=assessment_normalize_answer($postedAnswers[$id]??'');}
+                    catch(InvalidArgumentException $e){$answers[$id]='';$errors[$id]='Choose one valid response for '.$id.'.';}
+                }
+                $code=$d['code'];try{$note=input_text($postedNotes[$code]??'',8000,true);assessment_validate_domain_note($note);$domainNotes[$code]=$note;}
+                catch(InvalidArgumentException $e){$errors['domain-note-'.$code]='Enter an optional explanation of at most 2,000 characters for domain '.$code.'.';}
             }
         } catch(InvalidArgumentException $e){$errors['form']='Some submitted information is invalid or too long. Please check your entries.';}
         if(!$errors){
@@ -60,7 +65,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
                 if(!isset($_SESSION['pending_reference'])){
                     if(!permit_submission($config))throw new RuntimeException('Too many submissions. Please try again in one hour.');
                     $rules=require __DIR__.'/scoring-rules.php';$catalogue=require __DIR__.'/recommendations.php';
-                    $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST','assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'notes'=>$notes];
+                    $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST','assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'domain_notes'=>$domainNotes];
                     $_SESSION['pending_reference']=assessment_create_record($config,$submission,$domains,$rules,$catalogue);
                 }
                 require_once __DIR__.'/pdf.php';require_once __DIR__.'/mail.php';
@@ -77,5 +82,5 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         }
     }
 }
-if(isset($_SESSION['pending_reference'])){try{$saved=assessment_read_record($config,$_SESSION['pending_reference']);$values=$saved['submission']['fields'];$answers=$saved['submission']['answers'];$notes=$saved['submission']['notes'];}catch(Throwable $e){$errors['form']='Your saved report is currently unavailable. Please call +91 98256 47083 and quote reference '.$_SESSION['pending_reference'].'.';}}
+if(isset($_SESSION['pending_reference'])){try{$saved=assessment_read_record($config,$_SESSION['pending_reference']);$values=$saved['submission']['fields'];$answers=$saved['submission']['answers'];$domainNotes=$saved['submission']['domain_notes'];}catch(Throwable $e){$errors['form']='Your saved report is currently unavailable. Please call +91 98256 47083 and quote reference '.$_SESSION['pending_reference'].'.';}}
 $receipt=($_GET['submitted']??'')==='1'?($_SESSION['receipt']??null):null;

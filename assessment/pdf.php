@@ -24,7 +24,7 @@ class AssessmentPDF extends FPDF {
     public function Heading(string $text): void {
         $this->SetTextColor(15,23,43);
         $this->SetFont('Helvetica','B',19);
-        $this->MultiCell(0,9,pdf_text($text));
+        $this->MultiCell(0,9,pdf_text($text),0,'L');
         $this->Ln(4);
     }
     public function Body(string $text): void {
@@ -33,34 +33,6 @@ class AssessmentPDF extends FPDF {
         $this->MultiCell(0,6,pdf_text($text));
     }
 }
-function assessment_pdf(array $submission, array $domains, array $labels, array $ratings): string {
-    $pdf=new AssessmentPDF();
-    $pdf->SetMargins(18,18,18);$pdf->SetAutoPageBreak(true,24);$pdf->AliasNbPages();
-    $pdf->SetTitle('My Physio Saathi - Completed Clinic Assessment');
-    $pdf->SetAuthor('My Physio Saathi');
-    $pdf->AddPage();$pdf->Heading('Clinic workflow assessment');
-    $pdf->Body('Submitted answers | 25 questions across 5 domains');$pdf->Ln(4);
-    $pdf->Body('Reference: '.$submission['id'].' | '.$submission['submitted_at']);$pdf->Ln(6);
-    foreach($labels as $key=>$label){
-        $pdf->SetFont('Helvetica','B',10);$pdf->SetTextColor(15,23,43);$pdf->MultiCell(0,6,pdf_text($label));
-        $pdf->Body((string)$submission['fields'][$key]);$pdf->Ln(3);
-    }
-    $pdf->Ln(4);$pdf->Body('This document records the clinic\'s self-reported answers. It is not a clinical, security or compliance certification. No assessment score has been assigned.');
-    $pdf->Ln(4);$pdf->Body('Rating scale: 1 Very low; 2 Low; 3 Moderate; 4 High; 5 Very high. Not sure and N/A are separate responses, not numeric scores.');
-    foreach($domains as $domain){
-        $pdf->AddPage();$pdf->Heading('Domain '.$domain['code'].' / '.$domain['title']);$pdf->Body($domain['description']);$pdf->Ln(5);
-        foreach($domain['questions'] as $id=>$question){
-            if($pdf->GetY()>225)$pdf->AddPage();
-            $pdf->SetTextColor(15,23,43);$pdf->SetFont('Helvetica','B',11);$pdf->MultiCell(0,6,pdf_text($id.'. '.$question));
-            $pdf->SetFillColor(248,250,252);$pdf->SetTextColor(183,25,22);$pdf->SetFont('Helvetica','B',10);
-            $pdf->Cell(0,9,pdf_text('Answer: '.$ratings[$submission['answers'][$id]]),0,1,'L',true);
-            if($submission['notes'][$id]!==''){$pdf->Body('Notes: '.$submission['notes'][$id]);}
-            $pdf->Ln(6);
-        }
-    }
-    return $pdf->Output('S');
-}
-
 /** Customer report uses the existing FPDF library, fonts, navy/red brand and footer. */
 class CustomerReportPDF extends AssessmentPDF {
     public function Header() {
@@ -137,17 +109,19 @@ function customer_report_pdf(array $report,array $labels): string {
     $pdf->SetTitle('My Physio Saathi - Clinic Workflow Report');$pdf->SetAuthor('My Physio Saathi');
     $pdf->AddPage();$pdf->Ln(12);$pdf->Section('Self-reported assessment',isset($report['domain_plans'])?'Clinic workflow improvement roadmap':'Your clinic workflow report');$pdf->Heading($s['fields']['clinic_name']);
     $pdf->Paragraph('Assessment reference: '.$s['id']);$pdf->Paragraph('Submitted: '.$s['submitted_at']);
-    $pdf->Tiles([['STATUS',$report['status']==='Provisional'?'Provisional':'Self-reported'],['HORIZON',isset($report['domain_plans'])?'90 days':'Assessment'],['ASSESSMENT','25 questions']]);$pdf->Ln(3);
+    $pdf->Tiles([['STATUS',$report['status']==='Insufficient information'?'Insufficient':($report['status']==='Provisional'?'Provisional':'Self-reported')],['HORIZON',isset($report['domain_plans'])?'90 days':'Assessment'],['ASSESSMENT','25 questions']]);$pdf->Ln(3);
+    $pdf->Paragraph('Report status: '.$report['status'],true);
     foreach($labels as $key=>$label)$pdf->Paragraph($label.': '.($s['fields'][$key]??'Not supplied'));
     $pdf->Ln(5);$pdf->Paragraph('Assessment version: '.$report['versions']['assessment'].' | Scoring rules: '.$report['versions']['scoring'].' | Recommendation catalogue: '.$report['versions']['recommendations']);
     if(isset($report['versions']['roadmap']))$pdf->Paragraph('Roadmap measures: '.$report['versions']['roadmap'].' | Presentation: '.$report['versions']['presentation']);
     $pdf->Ln(5);$pdf->Paragraph($report['disclaimer']);
-    $pdf->Paragraph('Ratings: 1 Very low; 2 Low; 3 Moderate; 4 High; 5 Very high. Unknown, missing and N/A responses are not numeric scores.');
+    $pdf->Paragraph('Scoring and eligibility rules are internal product rules, not validated industry thresholds. Paper-based and digital processes are assessed on the same basis.');
+    $scaleLabels=[];foreach($report['rating_scale'] as $score=>$scale)$scaleLabels[]=$score.' '.$scale['level'];$pdf->Paragraph('Ratings: '.implode('; ',$scaleLabels).'. Not sure and Not applicable are not numeric scores.');
     $pdf->AddPage();$pdf->Section('Executive summary','Where to focus first');
-    $pdf->Tiles([['NUMERIC AVERAGE',report_number($report['overall_average']).($report['overall_average']!==null?' / 5':'')],['RESPONSE COVERAGE',$report['coverage']===null?'Not available':report_number($report['coverage']).'%'],['REPORT STATUS',$report['status']==='Provisional'?'Provisional':'Self-reported']]);
+    $pdf->Tiles([['NUMERIC AVERAGE',$report['overall_eligible']?report_number($report['overall_average']).' / 5':'Not available'],['RESPONSE COVERAGE',$report['coverage']===null?'Not available':report_number($report['coverage']).'%'],['REPORT STATUS',$report['status']==='Insufficient information'?'Insufficient':($report['status']==='Provisional'?'Provisional':'Self-reported')]]);
     $pdf->Paragraph('Report status: '.$report['status'],true);
-    $pdf->Paragraph($report['status']==='Provisional'?'Unknown, missing or unreviewed N/A responses remain. Confirm these before relying on the assessment.':'All questions have numeric responses. These remain self-reported, rather than independently verified.');
-    if(!$report['overall_eligible'])$pdf->Paragraph('The numeric average is an available-response average; an overall interpretation is not yet supported.',true);
+    $pdf->Paragraph(($report['counts']['unknown']+$report['counts']['na'])>0?'Unknown, missing or unreviewed N/A responses remain. Confirm these before relying on the assessment.':'All questions have numeric responses. These remain self-reported, rather than independently verified.');
+    if(!$report['overall_eligible'])$pdf->Paragraph('An overall average is not displayed because coverage or domain requirements are not met.',true);
     $pdf->Paragraph($report['overall_interpretation']);
     $pdf->Paragraph($report['coverage_label'].': '.($report['coverage']===null?'Not available (all responses N/A)':report_number($report['coverage']).'%'));
     $c=$report['counts'];$pdf->Paragraph('Numeric: '.$c['numeric'].' | Unknown: '.$c['unknown'].' | N/A: '.$c['na'].' | Missing: '.$c['missing']);
@@ -163,12 +137,13 @@ function customer_report_pdf(array $report,array $labels): string {
     foreach($report['domains'] as $d){
         $heading='Domain '.$d['code'].' / '.$d['title'];$pdf->AddPage();$pdf->Section('Detailed observation register',$heading);
         $pdf->Paragraph('Average: '.report_number($d['average']).($d['average']!==null?' / 5':'').' | '.$d['interpretation']);
+        $domainNote=$report['submission']['domain_notes'][$d['code']];if(trim($domainNote)!=='')$pdf->Block(['Submitted domain explanation (not independently verified)',$domainNote,'This domain-level explanation is not assumed to support every question.'],$heading);
         foreach($report['findings'] as $f){if($f['domain']!==$d['code'])continue;
-            $parts=[$f['id'].' / '.$f['title'].($f['control_gap']?' / IMPORTANT CONTROL GAP':''),'Question: '.$f['question'],'Submitted response: '.$f['response_label'].'. '.$f['category'].'.'];
-            if($f['note']!=='')$parts[]='Submitted note: '.$f['note'];
+            $parts=[$f['id'].' / '.$f['title'].($f['control_gap']?' / IMPORTANT CONTROL GAP':''),'Question: '.$f['question'],(is_int($f['response'])?'The clinic rated this process ':'Submitted response: ').$f['response_label'].'. '.$f['category'].'.'];
+            if($f['evidence_label']!==null)$parts[]='Evidence: '.$f['evidence_label'];
             if(is_int($f['response'])){
                 $parts[]=$f['response']===5?'The response indicates a strong reported process. It has not been independently verified.':'The response indicates: '.$f['category'].'.';
-                $parts[]='Possible consequence if the process is inconsistent: '.$f['consequence'];
+                $parts[]='This may lead to: '.$f['consequence'];
             }else $parts[]='This response does not establish a process failure. Confirmation is required.';
             $parts[]='Recommendation: '.$f['recommendation'];
             if(isset($f['software_note']))$parts[]='Relevant verified capability: '.$f['software_note'];
@@ -199,7 +174,7 @@ function report_domain_overview(CustomerReportPDF $pdf,array $report,array $doma
     $pdf->Paragraph($domain['interpretation']);$pdf->Paragraph('Priority observations and confirmations',true);
     foreach($plan['observations'] as $f){
         $label=$f['control_gap']?'IMPORTANT CONTROL GAP':(is_int($f['response'])?$f['category']:'Confirmation required, not a demonstrated failure');
-        $pdf->Panel($f['id'].' / '.$f['title'],'Submitted response: '.$f['response_label'].'. '.$label.'.',$f['control_gap'],true);
+        $pdf->Panel($f['id'].' / '.$f['title'],'Submitted response: '.$f['response_label'].'. '.$label.'.'.($f['evidence_label']!==null?' Evidence: '.$f['evidence_label'].'.':''),$f['control_gap'],true);
     }
     $pdf->Paragraph('Suggested delivery plan',true);$rows=[];
     foreach($plan['observations'] as $f)$rows[]=[$f['id'],$f['recommendation'],$f['role'],$f['timing']];
@@ -211,21 +186,21 @@ function report_domain_overview(CustomerReportPDF $pdf,array $report,array $doma
 }
 function report_roadmap_sections(CustomerReportPDF $pdf,array $report): void {
     $pdf->AddPage();$pdf->Section('Management scorecard','Full KRA and KPI register');
-    $pdf->Panel('How to use this register','KRA means the area of responsibility. KPI means the measure used to check progress. Suggested targets are planning proposals. Ratings out of 5 are self-reported process scores, not measured KPI baselines.');
-    $pdf->Paragraph('For percentage measures, retain the numerator, denominator and review period. A zero denominator means not measurable in that period, not 100%. If no relevant events occur, agree a documented process test where appropriate. Keep patient-level evidence private.');
+    $pdf->Panel('How to use this register','KRA means the area to improve. High reported scores can instead call for maintenance. KPI means the measure used to check progress. Suggested targets are planning proposals. Ratings out of 5 are self-reported process scores, not measured KPI baselines.');
+    $pdf->Paragraph('For percentage measures, retain the numerator, denominator and review period. For zero opportunities, report No eligible cases, not 0% or 100%. If no relevant events occur, agree a documented process test where appropriate. Keep patient-level evidence private.');
     foreach($report['domains'] as $domain){
         $pdf->Keep(65);$pdf->Paragraph('Domain '.$domain['code'].' / '.$domain['title'],true);$rows=[];
-        foreach($report['kpi_register'] as $m)if($m['domain']===$domain['code'])$rows[]=[$m['id']."\n".$m['mode'],$m['kra']."\nKPI: ".$m['kpi']."\nMeasure: ".$m['formula'],$m['target_for_report']."\nBaseline: Not measured.",$m['role']."\nEvidence: ".$m['evidence']];
+        foreach($report['kpi_register'] as $m)if($m['domain']===$domain['code'])$rows[]=[$m['id']."\n".$m['mode'],$m['kra']."\nKPI: ".$m['kpi']."\nMeasure: ".$m['formula'],$m['target_for_report']."\nBaseline to be measured.",$m['role']."\nEvidence: ".$m['evidence']];
         $pdf->Table(['ID / purpose','KRA, KPI and measurement','Proposed target / baseline','Suggested owner / evidence'],$rows,[20,60,49,45],'Full KRA and KPI register');
     }
     $pdf->Paragraph('Suggested cadence: weekly checks during the first 30 days, then agree a suitable review frequency. Record the actual baseline and clinic-agreed target separately from these proposals.');
-    $pdf->AddPage();$pdf->Section('First 90 days','A practical clinic improvement roadmap');
+    $pdf->AddPage();$pdf->Section('First 90 days','Suggested 90-day roadmap');
     $pdf->Paragraph('The first 30 days focus on the priority actions already listed. The next phases support consistent use and evidence review. Urgent control gaps should be addressed within their suggested early timings, rather than deferred until Day 90.');
     foreach($report['roadmap_90'] as $phase)$pdf->Panel($phase['phase'].' / '.$phase['theme'],$phase['action']."\nEvidence to retain: ".$phase['evidence']);
     $pdf->Panel('Proposed 90-day outcome','If the agreed actions are carried out, the clinic should have clearer responsibilities, checked processes and an evidence-based review of the selected priorities. This is an intended outcome, not a reported achievement or a guaranteed score improvement.');
     $pdf->AddPage();$pdf->Section('Review template','Day-90 outcome review');
     $pdf->Paragraph('Complete this section at the later review. Actual results are intentionally unfilled. Verify applicability and use the same measurement definition and review period for baseline and follow-up.');
-    $rows=[];foreach($report['day90_review'] as $row)$rows[]=[$row['id'].' / '.$row['outcome'],"Baseline: To measure\nAgreed target: To agree\nDay-90 actual: Not yet measured",$row['evidence']."\nStatus: ".$row['status']];
+    $rows=[];foreach($report['day90_review'] as $row)$rows[]=[$row['id'].' / '.$row['outcome'],"Baseline to be measured\nAgreed target: To agree\nDay-90 actual: Not yet measured",$row['evidence']."\nStatus: ".$row['status']];
     if(!$rows)$pdf->Paragraph('No supported improvement or confirmation actions were identified. Agree maintenance checks and use the KPI register to select appropriate review measures.');
     else $pdf->Table(['Selected outcome','Baseline / agreed target / actual','Completion evidence and review status'],$rows,[48,52,74],'Day-90 outcome review');
     $pdf->Panel('Review decision','For each selected action, record completed, in progress, not started, or inapplicable after review. Record the evidence, reviewer and next step. Repeat the assessment if useful, but do not treat a higher self-reported score as independent verification.');

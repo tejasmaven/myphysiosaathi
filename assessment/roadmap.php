@@ -1,12 +1,11 @@
 <?php
 /** Presentation planning only: never modifies scoring, submitted facts or priorities. */
 function assessment_add_roadmap(array $report,array $catalogue): array {
-    if(!isset($catalogue['measurement_catalogue']))return $report; // Old snapshots stay reproducible.
     $metrics=$catalogue['measurement_catalogue'];$plans=[];$register=[];
     foreach($report['findings'] as $id=>$f){
         $metric=$metrics['questions'][$id]??null;if(!$metric)throw new InvalidArgumentException('Missing planning metric.');
         $mode=is_int($f['response'])?($f['response']<=3?'Improve':'Maintain and validate'):($f['response']==='na'?'Applicability review':'Confirm before planning');
-        $metric['id']=$id;$metric['domain']=$f['domain'];$metric['response_label']=$f['response_label'];$metric['mode']=$mode;$metric['role']=$f['role'];
+        $metric['id']=$id;$metric['domain']=$f['domain'];$metric['response_label']=$f['response_label'];$metric['mode']=$mode;$metric['evidence_label']=$f['evidence_label'];$metric['role']=$f['role'];
         if($f['response']==='na')$metric['target_for_report']='Applicability must be reviewed before adopting this KPI or target.';
         elseif(!is_int($f['response']))$metric['target_for_report']='Verify the process and establish a baseline before agreeing a target. Candidate: '.$metric['proposed_target'];
         else $metric['target_for_report']=$metric['proposed_target'];
@@ -20,7 +19,7 @@ function assessment_add_roadmap(array $report,array $catalogue): array {
         });
         $selected=array_slice($findings,0,3);$plans[$code]=['observations'=>$selected,'metrics'=>array_map(fn($f)=>$register[$f['id']],$selected)];
     }
-    $report['versions']['roadmap']=$metrics['version'];$report['versions']['presentation']='2.0.0';
+    $report['versions']['roadmap']=$metrics['version'];$report['versions']['presentation']='3.0.0';
     $report['domain_plans']=$plans;$report['kpi_register']=$register;
     $report['roadmap_90']=[
         ['phase'=>'Within 30 days','theme'=>'Confirm and establish','action'=>'Confirm unknown answers and N/A applicability. Choose the supported priorities, agree responsibilities and measure baseline KPIs before changing the process.','evidence'=>'Applicability decisions, named responsibilities, baseline numerator/denominator or test result, and an agreed action list.'],
