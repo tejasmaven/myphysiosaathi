@@ -50,3 +50,7 @@ Neither assessment/config.php nor assessment/config.local.php was tracked when t
 Tests passed for config.php loading, config.local.php precedence, an explicit external path, environment-only setup, environment overrides, string boolean flags, invalid configuration and both form submission flows. Assessment PDF generation and dual delivery, retry behavior and homepage PHPMailer delivery were retested using a local SMTP test server.
 
 After deploying, refresh the assessment and submit one controlled test to confirm real Gmail receipt. Preserve your real SMTP settings.
+
+## Customer report storage
+
+The assessment customer report also requires durable private storage outside DocumentRoot. Set `ASSESSMENT_REPORT_DIRECTORY` in the PHP environment, or `report_directory` in the ignored SMTP/configuration PHP file. Default: `myphysiosaathi-private/reports` beside DocumentRoot. Pre-create it for the PHP user with mode 0700. Generated JSON/PDF files are mode 0600 and must never be committed or served publicly. See `assessment/README.md` for lifecycle, retention and retry details. This setting does not change SMTP credentials or homepage enquiry delivery.

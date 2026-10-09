@@ -1,47 +1,51 @@
-# Free clinic assessment
+# Clinic workflow assessment and customer report
 
-Entry page: `free-assesment.php` (the requested spelling). Upload that file and the entire `assessment/` folder beside the existing `index.html` and `styles.css`. The landing page is unchanged and does not link to this page. The assessment uses `noindex,nofollow`.
+Entry page: `free-assesment.php` (existing spelling). The landing page remains unchanged and does not link to it. The page uses `noindex,nofollow`.
 
-## Server requirements
+## Deployment
 
-- PHP 8.1 or later, with sessions, OpenSSL, iconv and zlib enabled.
-- HTTPS, writable private PHP session storage, and outbound access to Gmail SMTP.
-- Apache 2.4 with AllowOverride enabled. The included assessment/.htaccess allows only form.css and form.js to be accessed directly. On Nginx, configure equivalent denial of direct access to every other path inside /assessment/.
-- No Composer or database required. PHPMailer 7.1.1 and FPDF 1.86 are included, with upstream licenses.
+Upload `free-assesment.php` and the whole `assessment/` directory beside the existing landing page. Preserve the server's ignored SMTP configuration and existing root `.htaccess` and virtual-host settings. Requirements: PHP 8.1+, sessions, OpenSSL, iconv, zlib, HTTPS and outbound SMTP access. PHPMailer 7.1.1 and FPDF 1.86 remain bundled with licenses. No Composer, database or external AI service is used.
 
-## Configure Gmail delivery
+Configure SMTP as described in `SMTP_SETUP.md`. The assessment and homepage enquiry share the existing configuration loader. Existing `config.php` and `config.local.php` remain supported; neither should be committed.
 
-1. Copy `assessment/config.example.php` to a private path outside DocumentRoot, for example `/var/www/private/myphysiosaathi-assessment.php`.
-2. Enter the Gmail username, Gmail App Password, matching from_email and the admin recipient. Leave `enabled` false while preparing.
-3. Set the Apache environment variable `ASSESSMENT_CONFIG_PATH` to that absolute private file path. Alternatively keep your existing `assessment/config.php`, or use `assessment/config.local.php`. Both are ignored by Git. `config.local.php` takes precedence over `config.php`; keeping credentials outside the web directory is recommended.
-4. Use smtp.gmail.com, port 587 and tls, or port 465 and ssl. Keep certificate verification enabled.
-5. Ensure state_directory is writable by the PHP user and is outside DocumentRoot. The application writes rate-limit timestamps here, not reports or answers.
-6. Set enabled to true for a controlled real test. Complete the form, verify both inboxes and their PDF attachments, and confirm the success message. Keep the page unavailable to visitors until this test passes. Disable again if a test fails.
+**New deployment requirement:** durable private report storage outside the web document root. Set `report_directory` in the private PHP configuration, or `ASSESSMENT_REPORT_DIRECTORY` in the PHP environment, for example `/var/www/private/myphysiosaathi/reports`. If omitted, the default is `myphysiosaathi-private/reports` beside DocumentRoot. Pre-create the directory and give the PHP user write access with directory mode 0700. Files are mode 0600. There is no fallback into a public directory. A configured path inside DocumentRoot, including a symlink resolving there, is rejected. The directory must survive deployments and server restarts. An unwritable directory is a deployment blocker.
 
-Keep the App Password out of GitHub. The application is disabled unless configuration is complete. Uploading this repository alone does not configure SMTP.
+Configure Apache 2.4 AllowOverride for `assessment/.htaccess`, which exposes only `form.css` and `form.js` directly. Configure equivalent internal-file denial on Nginx. Reports themselves stay outside DocumentRoot and have no public download route. Confirm access restrictions on the actual host.
 
-## Fields and answers
+The seven clinic fields and all 25 form responses remain required. Zero beds is valid. Optional notes are limited to 600 UTF-8 bytes. Do not submit patient identifiers or medical information. Standard FPDF fonts support English and Western European text. Gujarati/Hindi may be transliterated or unsupported; local-script support requires a separate PDF font upgrade.
 
-The seven clinic fields are required, including email and number of beds/treatment couches. Zero beds is valid. All 25 questions from My_Physio_Saathi_Clinic_Workflow_Assessment.pdf require one response. The PDF's Not sure and N/A responses are preserved. Notes are optional, up to 600 bytes per question, and should contain no patient identifiers or medical details.
+## Deterministic report generation
 
-The six-page PDF normally contains clinic details and one page per domain. Long notes may add pages. This is a completed questionnaire, without an invented score, recommendations or certification. Standard PDF fonts cover English and Western European text; names or notes in Gujarati/Hindi may be transliterated or display unsupported glyphs. Use English for this version. If local-script PDF support is needed, replace the font/PDF engine before launch.
+`questions.json` remains the question catalogue. `report.php` operates on structured answers, never PDF-extracted text. Numeric strings `1` through `5` become integers. Legacy `unsure` becomes `unknown`; canonical `unknown` and `na` remain nonnumeric. Blank, null, boolean, float, array, out-of-range and unsupported string values are rejected. Missing question keys are retained as missing for imported/test assessments; the public form still rejects incomplete submissions.
 
-## Submission behavior
+`scoring-rules.php` contains versioned thresholds, important control IDs, the minimum three numeric responses per domain and the 80% overall coverage requirement. Update its version when rules change. All averages use numeric responses only and interpretation uses unrounded values. Overall scoring is question-weighted. Coverage is numeric count divided by 25 minus respondent-selected N/A count. An all-N/A assessment has no coverage percentage. Unknown, missing and unreviewed N/A answers make a report Provisional. All-numeric reports remain self-reported.
 
-Server-side and browser validation, escaped output, CSRF tokens, honeypot and a six-valid-submissions-per-hour-per-IP limit are included. Client-provided proxy headers are not trusted. HTML radio groups support keyboard selection. The form remains functional without JavaScript.
+An available-response average can be displayed for an incomplete assessment, clearly labelled, but an overall interpretation requires both coverage and domain thresholds. No score out of 125 is used. Strongest/weakest domains require at least three numeric responses; tied domains are selected by stable domain ID order.
 
-Each validated submission generates a reference and PDF. Separate PHPMailer messages go to the admin and submitter. A visible success message is shown only after both SMTP sends succeed. SMTP acceptance does not guarantee final inbox delivery.
+`recommendations.php` contains all 25 question recommendations, consequences, unknown-response verification tasks, suggested roles, timings and completion checks. Update its version when wording changes. Numeric priorities sort important low-scoring controls first, then other scores 1, 2 and 3, with score/ID tie-breaks. Unknown/missing items are separate; N/A responses require applicability review, including an explicit D5 owner-review question. The action plan includes up to three leading numeric gaps, then important verification and applicability tasks, with up to five actions total.
 
-If only one email succeeds, retry sends only the failed copy. Validated answers are frozen in the private PHP session after the first send attempt. They are removed from that session on success. Pending submissions are retained until retry or session expiry. No public PDF URL or permanent report archive is created. Configure normal session garbage collection and short retention on the server.
+The explicit `verified_capability_allowlist` is empty by default. Add a question's `software_capability` and `software_note` only after verifying the capability and adding its key to that allowlist. Do not add unverified reminders, automated reconciliation, backup or recovery-test claims. Generic branded discussion/demo invitations do not assert a product capability. Recommendations remain useful without purchasing software.
 
-PHP server-side processing is required. This page will not process submissions when opened from a local file or deployed to static-only hosting. The homepage enquiry and assessment share this same configuration loader. See `SMTP_SETUP.md` for environment variables and lookup precedence.
+`pdf.php` reuses the existing FPDF design, navy/red treatment, bundled fonts and contact footer. Its customer report contains cover, executive summary, scorecard, every question's findings, confirmation/applicability items, a suggested 30-day plan and an optional discussion invitation. All submitted answers and optional notes are retained in the detailed report. Page counts depend on response text and notes. The earlier raw-answer PDF function remains available but is no longer the attachment in the assessment flow.
 
-## Checks completed
+## Persistence and delivery
 
-PHP syntax checks on application and vendor files; local SMTP integration tests for successful dual delivery, both PDF attachments, partial failure and retry without duplicate delivery; CSRF rejection; missing and invalid rating rejection; invalid email; zero-bed input; all 25 question groups and all seven answer choices; generated PDF content and rendered layout review.
+`report-store.php` saves one unpredictable 128-bit reference, immutable structured submission, canonical answers, assessment/scoring/catalogue versions, full question/rule/catalogue snapshots, deterministic report data, separate PDF status and separate admin/user email statuses. SMTP credentials are never copied into a report record. A versioned snapshot allows later reproduction without depending on an edited catalogue.
 
-Real Gmail delivery, inbox receipt, server access-denial rules and browser desktop/mobile review must be checked on deployment. SMTP credentials and admin recipient are still required. A README is included so these remaining checks are explicit.
+A report is saved before PDF generation. Generation failure records `pdf.status=failed`; retry retains the same reference. Successfully generated PDF bytes are stored privately with a SHA-256 integrity check. PHPMailer sends two separate messages using the existing SMTP configuration. The success page is displayed only after both SMTP sends succeed. SMTP acceptance is not a guarantee of inbox receipt.
 
-Upstream sources:
-- https://github.com/PHPMailer/PHPMailer/releases/tag/v7.1.1
-- https://github.com/Setasign/FPDF/tree/1.8.6
+The session stores the pending reference. Retry reloads the saved structured data, retains the original answers even if fields are edited, reuses the same PDF bytes and sends only recipients not marked sent. A record lock serialises concurrent retries. Report-generation and email-delivery status are independent. A fresh submission after success creates a new assessment; replaying its old form token fails CSRF validation.
+
+The automated retry button requires the original session. After session expiry, a trusted server-side administrator can call `assessment_process_record()` with the private reference and the same PDF/sender callbacks used in `backend.php`. There is intentionally no public report retrieval or retry-by-reference endpoint. Never infer consent for extra marketing messages from this report flow.
+
+Deploy when no old in-session assessment deliveries are pending: the previous questionnaire-only session format is not migrated to the new customer report. Preserve private report storage thereafter. Configure owner-approved retention, private backups and deletion procedures for these contact/answer/report records. No automatic deletion period or backup guarantee is introduced here.
+
+File persistence and SMTP cannot share an atomic transaction. If a process crashes after SMTP accepts a message but before its sent status is saved, verify delivery before manually retrying. Routine failures and retries are covered by the tests; absolute exactly-once external email delivery is not claimed.
+
+## Verification
+
+Run `php tests/report-regression.php` with iconv enabled. Set `REPORT_TEST_OUTPUT=/private/path/fixture.pdf` to retain the fictional fixture PDF for review. Run `PHP_COMMAND='php' python3 tests/submission-integration.py` for an actual local PHP HTTP/PHPMailer SMTP test. Python uses its standard library; optional PyMuPDF adds PDF text checks. These tests send only to a local fake SMTP server, not Gmail.
+
+The regression checks the supplied 78/22 fixture, five domain averages, 3.55/5, 91.67% coverage, control priorities, unknown/N/A review, all-1/all-5/no-numeric/missing/all-N/A responses, insufficient domain coverage, invalid values, exact interpretation boundaries and configurable thresholds. Persistence tests cover PDF failure, immutable snapshots, private permissions, unsafe directory rejection and partial-email retry with unchanged PDF bytes. HTTP integration checks validation, escaped customer text, legacy normalisation, attachments to both recipients, success/error states and replay rejection.
+
+Before production use: verify private-directory permissions and durable storage; test the configured Gmail route and both inboxes; confirm the server's access-denial rules. This implementation does not change the live server's SMTP settings or deploy itself there.

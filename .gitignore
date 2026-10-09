@@ -18,3 +18,7 @@ assessment/reports/
 **/smtp_config.php
 assessment/smtp.php
 myphysiosaathi-assessment.php
+
+# Private assessment records and PDFs must never be committed.
+myphysiosaathi-private/
+assessment/reports-test/

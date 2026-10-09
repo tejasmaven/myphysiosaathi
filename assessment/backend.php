@@ -8,7 +8,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 $domains=json_decode(file_get_contents(__DIR__.'/questions.json'),true,512,JSON_THROW_ON_ERROR);
 $labels=['clinic_name'=>'Clinic name','doctor_name'=>'Dr full name','location'=>'Location / area / address','city'=>'City','mobile'=>'Mobile number','email'=>'Email address','beds'=>'Number of beds / treatment couches'];
-$ratings=['1'=>'1 - Very low','2'=>'2 - Low','3'=>'3 - Moderate','4'=>'4 - High','5'=>'5 - Very high','unsure'=>'Not sure','na'=>'N/A'];
+$ratings=['1'=>'1 - Very low','2'=>'2 - Low','3'=>'3 - Moderate','4'=>'4 - High','5'=>'5 - Very high','unknown'=>'Not sure','na'=>'N/A'];
 $values=array_fill_keys(array_keys($labels),'');$answers=[];$notes=[];$errors=[];$status='';
 function esc($value): string { return htmlspecialchars((string)$value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function input_text($value,int $max,bool $multiline=false): string {
@@ -27,6 +27,7 @@ function permit_submission(array $config): bool {
     ftruncate($fh,0);rewind($fh);fwrite($fh,json_encode($entries));flock($fh,LOCK_UN);fclose($fh);return $ok;
 }
 require_once __DIR__.'/config-loader.php';
+require_once __DIR__.'/report-store.php';
 $config=assessment_load_config();
 $ready=assessment_config_ready($config);
 if(!isset($_SESSION['token'])){$_SESSION['token']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();}
@@ -47,36 +48,34 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
             $postedAnswers=$_POST['answers']??[];$postedNotes=$_POST['notes']??[];
             if(!is_array($postedAnswers)||!is_array($postedNotes))throw new InvalidArgumentException('Invalid answers.');
             foreach($domains as $d)foreach($d['questions'] as $id=>$q){
-                $answers[$id]=input_text($postedAnswers[$id]??'',10);
+                $raw=input_text($postedAnswers[$id]??'',10);
+                if($raw===''){$answers[$id]='';$errors[$id]='Choose one response for this question.';}
+                else $answers[$id]=assessment_normalize_answer($raw);
                 $notes[$id]=input_text($postedNotes[$id]??'',600,true);
-                if(!isset($ratings[$answers[$id]]))$errors[$id]='Choose one response for this question.';
             }
         } catch(InvalidArgumentException $e){$errors['form']='Some submitted information is invalid or too long. Please check your entries.';}
         if(!$errors){
             try {
-                // Freeze validated answers after the first send attempt. Retry only failed recipients.
-                if(!isset($_SESSION['pending'])){
+                // Persist the immutable structured submission before PDF generation or delivery.
+                if(!isset($_SESSION['pending_reference'])){
                     if(!permit_submission($config))throw new RuntimeException('Too many submissions. Please try again in one hour.');
-                    $submission=['id'=>strtoupper(bin2hex(random_bytes(6))),'submitted_at'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST','fields'=>$values,'answers'=>$answers,'notes'=>$notes];
-                    require_once __DIR__.'/pdf.php';
-                    $_SESSION['pending']=['submission'=>$submission,'pdf'=>assessment_pdf($submission,$domains,$labels,$ratings),'admin_sent'=>false,'user_sent'=>false];
+                    $rules=require __DIR__.'/scoring-rules.php';$catalogue=require __DIR__.'/recommendations.php';
+                    $submission=['id'=>strtoupper(bin2hex(random_bytes(16))),'submitted_at'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Kolkata')))->format('d M Y, H:i').' IST','assessment_version'=>$rules['assessment_version'],'fields'=>$values,'answers'=>$answers,'notes'=>$notes];
+                    $_SESSION['pending_reference']=assessment_create_record($config,$submission,$domains,$rules,$catalogue);
                 }
-                require_once __DIR__.'/mail.php';
-                $pending=&$_SESSION['pending'];$failures=[];
-                foreach(['admin','user'] as $target){
-                    if($pending[$target.'_sent'])continue;
-                    try{deliver_assessment($config,$pending['submission'],$target==='admin'?$config['admin_email']:$pending['submission']['fields']['email'],$target==='admin',$pending['pdf']);$pending[$target.'_sent']=true;}
-                    catch(Throwable $e){$failures[]=$target;error_log('Assessment '.$pending['submission']['id'].' delivery failed: '.$target);}
-                }
-                if(!$failures){
-                    $_SESSION['receipt']=['id'=>$pending['submission']['id'],'email'=>$pending['submission']['fields']['email']];
-                    unset($_SESSION['pending']);$_SESSION['token']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();
+                require_once __DIR__.'/pdf.php';require_once __DIR__.'/mail.php';
+                $pending=assessment_process_record($config,$_SESSION['pending_reference'],
+                    fn($report)=>customer_report_pdf($report,$labels),
+                    function($submission,$target,$pdf)use($config){deliver_assessment($config,$submission,$target==='admin'?$config['admin_email']:$submission['fields']['email'],$target==='admin',$pdf);});
+                if($pending['email']['admin']['status']==='sent' && $pending['email']['user']['status']==='sent'){
+                    $_SESSION['receipt']=['id'=>$pending['reference'],'email'=>$pending['submission']['fields']['email']];
+                    unset($_SESSION['pending_reference']);$_SESSION['token']=bin2hex(random_bytes(24));$_SESSION['opened_at']=time();
                     header('Location: free-assesment.php?submitted=1',true,303);exit;
                 }
-                $errors['form']='Email delivery could not complete. Your answers are retained for this session. Use Retry email delivery below; copies already sent will not be sent again.';
+                $errors['form']='Email delivery could not complete. Your report is saved privately. Use Retry report delivery below; copies already sent will not be sent again.';
             }catch(Throwable $e){error_log('Assessment processing failed');$errors['form']=$e->getMessage()==='Too many submissions. Please try again in one hour.'?$e->getMessage():'We could not process your assessment. Please try again or call +91 98256 47083.';}
         }
     }
 }
-if(isset($_SESSION['pending'])){$values=$_SESSION['pending']['submission']['fields'];$answers=$_SESSION['pending']['submission']['answers'];$notes=$_SESSION['pending']['submission']['notes'];}
+if(isset($_SESSION['pending_reference'])){try{$saved=assessment_read_record($config,$_SESSION['pending_reference']);$values=$saved['submission']['fields'];$answers=$saved['submission']['answers'];$notes=$saved['submission']['notes'];}catch(Throwable $e){$errors['form']='Your saved report is currently unavailable. Please call +91 98256 47083 and quote reference '.$_SESSION['pending_reference'].'.';}}
 $receipt=($_GET['submitted']??'')==='1'?($_SESSION['receipt']??null):null;

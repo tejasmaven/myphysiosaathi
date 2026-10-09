@@ -1,30 +1,24 @@
 # My Physio Saathi
 
-Static single-page marketing website for https://www.myphysiosaathi.in/.
+Marketing website for https://www.myphysiosaathi.in/, plus hidden pricing and clinic assessment pages.
 
 ## Deploy
 
-Upload index.html, styles.css, site.js, og.png, and assets/ into the server document root. No build, package installation, PHP, or database is required for the website. Email submission uses a separately hosted API.
+Upload the website files and assets to the PHP-enabled server. Preserve ignored private configuration, the server's root `.htaccess` and virtual-host settings. Homepage enquiries and clinic assessments use bundled PHPMailer without Composer. Configure the shared SMTP settings using `SMTP_SETUP.md`; existing `assessment/config.php` and `assessment/config.local.php` remain supported and ignored by Git. The old browser email API is no longer required for enquiry delivery.
 
-### API configuration
-
-For a fresh deployment, copy config.example.js to config.js and put the browser API key supplied in the private enquiry integration guide into emailApiKey. The endpoint is already set. config.js is ignored by Git and must never be committed to this public repository.
-
-For the existing live deployment, preserve your working config.js when uploading or pulling changes. Also preserve the server's existing .htaccess and virtual-host settings; they are not managed by this repository.
-
-Without a configured API key, the form remains disabled and shows a direct-call alternative. The integration requires email, maps snake_case fields, handles server validation/rate-limit/error responses, and clears inputs only after confirmed API success. Tejas confirmed receipt of the integration test email. Verify one submission after deploying to a new origin.
+The hidden `free-assesment.php` page generates deterministic, versioned customer reports from structured questionnaire answers. It requires durable private storage outside DocumentRoot. See `assessment/README.md` for configuration, report rules, private persistence, retries and regression tests. Uploading source alone does not configure SMTP or private storage.
 
 ## Content and interaction
 
-- Six sections: opening, clinic problems, patient journey, role features, FAQs, contact.
+- Six landing-page sections: opening, clinic problems, patient journey, role features, FAQs, contact.
 - Red/white card hover states and reduced-motion support.
-- Six stacked workflow steps with changing images on hover, tap, click, and keyboard focus.
+- Six stacked workflow steps with changing images on hover, tap, click and keyboard focus.
 - One FAQ open at a time with matching question/answer backgrounds.
-- Six illustrative SVG placeholders; replace with approved application screenshots later.
+- Six illustrative SVG placeholders to replace with approved application screenshots.
 - Canonical and social-sharing URLs use the official www domain.
 
-No real patient details, product testimonials, invented prices, or appointment/reminder claims are included.
+No real patient details, invented testimonials or appointment/reminder claims are included.
 
 ## Editing
 
-Page copy and image references: index.html. Styling: styles.css. Form and interactions: site.js. Workflow images: assets/. Sharing card: og.png.
+Page copy: `index.html`. Styling: `styles.css`. Form and interactions: `site.js`. Workflow images: `assets/`. Sharing card: `og.png`. Assessment/report implementation and configuration: `assessment/`. Regression checks: `tests/`.

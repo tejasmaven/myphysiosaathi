@@ -34,6 +34,7 @@ function assessment_load_config(): array {
         'SMTP_FROM_NAME'=>'from_name',
         'SMTP_ADMIN_EMAIL'=>'admin_email',
         'ASSESSMENT_STATE_DIRECTORY'=>'state_directory',
+        'ASSESSMENT_REPORT_DIRECTORY'=>'report_directory',
     ];
     foreach($environment as $name=>$key){
         $value=getenv($name);
@@ -50,6 +51,8 @@ function assessment_load_config(): array {
     $config['admin_email']=trim((string)($config['admin_email']??''));
     $config['from_name']=trim((string)($config['from_name']??'My Physio Saathi'));
     $config['state_directory']=(string)($config['state_directory']??sys_get_temp_dir().'/myphysiosaathi-assessment');
+    $webRoot=realpath($_SERVER['DOCUMENT_ROOT']??dirname(__DIR__)) ?: dirname(__DIR__);
+    $config['report_directory']=(string)($config['report_directory']??dirname($webRoot).'/myphysiosaathi-private/reports');
     return $config;
 }
 function assessment_config_ready(array $config): bool {
