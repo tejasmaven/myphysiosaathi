@@ -17,7 +17,9 @@ return [
     'admin_email' => '',
     // Directory outside DocumentRoot for small rate-limit counters. No reports are saved here.
     'state_directory' => sys_get_temp_dir() . '/myphysiosaathi-assessment',
-    // Durable storage OUTSIDE DocumentRoot, writable only by the PHP user.
-    // If omitted, defaults to myphysiosaathi-private/reports beside DocumentRoot.
-    // 'report_directory' => '/var/www/private/myphysiosaathi/reports',
+    // Create this folder manually OUTSIDE DocumentRoot before accepting assessments.
+    // Give the PHP worker ownership and directory permission 0700 (not 0777).
+    // If you choose another private folder, replace this absolute path accordingly.
+    // Keep existing reports and daily reference counters when changing storage locations.
+    'report_directory' => '/var/lib/myphysiosaathi/reports',
 ];
