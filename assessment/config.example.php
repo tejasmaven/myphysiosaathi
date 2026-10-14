@@ -17,9 +17,11 @@ return [
     'admin_email' => '',
     // Directory outside DocumentRoot for small rate-limit counters. No reports are saved here.
     'state_directory' => sys_get_temp_dir() . '/myphysiosaathi-assessment',
-    // Create this folder manually OUTSIDE DocumentRoot before accepting assessments.
+    // Dedicated reports folder for this Apache deployment. Never expose its contents over HTTP.
+    // Upload reports/.htaccess first; Apache must honour it (AllowOverride AuthConfig or All).
+    // PHP also creates/verifies the deny file before writing any assessment records.
     // Give the PHP worker ownership and directory permission 0700 (not 0777).
-    // If you choose another private folder, replace this absolute path accordingly.
+    // Outside-DocumentRoot paths remain supported on all web servers.
     // Keep existing reports and daily reference counters when changing storage locations.
-    'report_directory' => '/var/lib/myphysiosaathi/reports',
+    'report_directory' => '/var/www/html/myphysiosaathi/reports',
 ];

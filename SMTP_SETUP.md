@@ -53,7 +53,7 @@ After deploying, refresh the assessment and submit one controlled test to confir
 
 ## Customer report storage
 
-The assessment customer report also requires durable private storage outside DocumentRoot. Set `ASSESSMENT_REPORT_DIRECTORY` in the PHP environment, or `report_directory` in the ignored SMTP/configuration PHP file. Default: `myphysiosaathi-private/reports` beside DocumentRoot. Pre-create it for the PHP user with mode 0700. Generated JSON/PDF files are mode 0600 and must never be committed or served publicly. See `assessment/README.md` for lifecycle, retention and retry details. This setting does not change SMTP credentials or homepage enquiry delivery.
+The assessment customer report also requires durable protected storage. The dedicated in-site `reports/` folder is supported on Apache with enforced HTTP denial; outside-root paths remain supported on other servers. Set `ASSESSMENT_REPORT_DIRECTORY` in the PHP environment, or `report_directory` in the ignored SMTP/configuration PHP file. Default: `myphysiosaathi-private/reports` beside DocumentRoot. Pre-create it for the PHP user with mode 0700. Generated JSON/PDF files are mode 0600 and must never be committed or served publicly. For in-site storage, upload `reports/.htaccess` first, verify Apache honours its denial rule, and follow `SECURITY.md`. See `assessment/README.md` for lifecycle, retention and retry details. This setting does not change SMTP credentials or homepage enquiry delivery.
 
 ## Enquiry assessment invitations
 

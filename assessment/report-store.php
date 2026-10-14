@@ -1,12 +1,28 @@
 <?php
 require_once __DIR__.'/report.php';
-/** Private storage must be outside the web document root, even on non-Apache servers. */
+/** Canonical Apache protection for the dedicated in-site reports directory. */
+function assessment_report_deny_rules(): string {
+    return "# My Physio Saathi: generated reports are never public downloads.\nRequire all denied\n";
+}
+/** Outside-root storage is supported on any server; in-site /reports requires Apache protection. */
 function assessment_report_directory(array $config): string {
     $path=$config['report_directory'];
     if(!is_dir($path) && !@mkdir($path,0700,true))throw new RuntimeException('Private report storage unavailable.');
     $dir=realpath($path);$root=realpath($_SERVER['DOCUMENT_ROOT']??dirname(__DIR__));
-    if(!$dir || !$root || $dir===$root || strncmp($dir,$root.DIRECTORY_SEPARATOR,strlen($root)+1)===0)throw new RuntimeException('Report storage must be outside the web document root.');
-    @chmod($dir,0700);return $dir;
+    if(!$dir || !$root || $dir===$root)throw new RuntimeException('Report storage must be outside the web document root.');
+    $appReports=realpath(dirname(__DIR__).'/reports');
+    if(strncmp($dir,$root.DIRECTORY_SEPARATOR,strlen($root)+1)===0 || $dir===$appReports){
+        // Do not accidentally deny access to the website itself or another application folder.
+        if($dir!==$root.'/reports' && $dir!==$appReports)throw new RuntimeException('Report storage must be outside the web document root.');
+        if(!preg_match('/^Apache(?:\/|$)/i',$_SERVER['SERVER_SOFTWARE']??''))throw new RuntimeException('In-site report storage requires Apache protection.');
+        $guard=$dir.'/.htaccess';$rules=assessment_report_deny_rules();
+        if(is_link($guard))throw new RuntimeException('Report directory protection is invalid.');
+        if(!file_exists($guard))assessment_atomic_write($guard,$rules);
+        // Fail rather than assume an altered/empty access file still blocks downloads.
+        if(file_get_contents($guard)!==$rules)throw new RuntimeException('Report directory protection is invalid.');
+    }
+    if(!@chmod($dir,0700))throw new RuntimeException('Cannot secure report directory.');
+    return $dir;
 }
 function assessment_report_path(array $config,string $ref): string {
     if(!preg_match('/^[A-F0-9]{32}$/D',$ref))throw new InvalidArgumentException('Invalid report reference.');

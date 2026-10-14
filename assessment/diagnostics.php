@@ -4,6 +4,9 @@ function assessment_failure_code(Throwable $error): string {
     $codes=[
         'Private report storage unavailable.'=>'storage.unavailable',
         'Report storage must be outside the web document root.'=>'storage.public_path',
+        'In-site report storage requires Apache protection.'=>'storage.apache_required',
+        'Report directory protection is invalid.'=>'storage.protection_invalid',
+        'Cannot secure report directory.'=>'storage.permissions',
         'Report storage unavailable.'=>'storage.write',
         'Cannot secure report file.'=>'storage.permissions',
         'Incomplete report write.'=>'storage.write',

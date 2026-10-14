@@ -22,3 +22,7 @@ myphysiosaathi-assessment.php
 # Private assessment records and PDFs must never be committed.
 myphysiosaathi-private/
 assessment/reports-test/
+
+# Keep the Apache protection file, but never commit generated report data.
+/reports/*
+!/reports/.htaccess

@@ -1,0 +1,5 @@
+# Optional server-level defence. Apply globally or to every vhost serving this folder.
+# Preserves the existing report path and remains effective if .htaccess overrides are disabled.
+<Directory "/var/www/html/myphysiosaathi/reports">
+    Require all denied
+</Directory>

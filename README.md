@@ -6,7 +6,7 @@ Marketing website for https://www.myphysiosaathi.in/, with a public pricing page
 
 Upload the website files and assets to the PHP-enabled server. Preserve ignored private configuration, the server's root `.htaccess` and virtual-host settings. Homepage enquiries and clinic assessments use bundled PHPMailer without Composer. Configure the shared SMTP settings using `SMTP_SETUP.md`; existing `assessment/config.php` and `assessment/config.local.php` remain supported and ignored by Git. The old browser email API is no longer required for enquiry delivery.
 
-The hidden `free-assesment.php` page generates deterministic, versioned customer reports from structured questionnaire answers. It requires durable private storage outside DocumentRoot. See `assessment/README.md` for configuration, report rules, private persistence, retries and regression tests. Uploading source alone does not configure SMTP or private storage.
+The hidden `free-assesment.php` page generates deterministic, versioned customer reports from structured questionnaire answers. It requires durable protected storage. Outside-DocumentRoot paths are supported on any server; the dedicated `reports/` folder is also supported on Apache with enforced HTTP denial. See `assessment/README.md` for configuration, report rules, private persistence, retries and regression tests. Uploading source alone does not configure SMTP or private storage.
 
 ## Content and interaction
 
@@ -40,3 +40,5 @@ A `Free clinic workflow audit` enquiry, or the supported `Free clinic workflow a
 Both flows reuse the same PHPMailer factory and private SMTP configuration as assessment reports, without Composer. Session delivery flags track the admin and invitation sends separately. After a partial failure, the response explains that the enquiry was received and asks the visitor to retry the link send. Matching retries in the same session reuse their request ID and do not repeat successful sends. A changed payload with the same ID is rejected. These flags persist in the PHP session, not a durable delivery queue. SMTP acceptance is not guaranteed inbox receipt; a crash between SMTP acceptance and saving the flag can still require manual confirmation.
 
 Run `PHP_COMMAND=php python3 tests/site-integration.py` for HTTP pages, shared tracking placement, metadata, footer/navigation matching and actual PHPMailer messages through a local capture SMTP server. It covers demo-only delivery, HTML escaping, separate recipients, admin/link failures and repeat submissions without duplicate successful sends. Also run `tests/submission-integration.py` and `php tests/report-regression.php` to verify the assessment report flow still works. No real emails are sent by these tests.
+
+Security controls and protected report-folder deployment: see `SECURITY.md`. The current example keeps `/var/www/html/myphysiosaathi/reports`; upload its denial file before the storage update and verify Apache blocks HTTP access.
