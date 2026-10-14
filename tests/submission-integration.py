@@ -78,6 +78,15 @@ with tempfile.TemporaryDirectory(prefix='mps-integration-') as temp:
   for rcpt,raw in captured:
    m=email.message_from_bytes(raw);attachment=next(p for p in m.walk() if p.get_content_type()=='application/pdf')
    assert attachment.get_payload(decode=True)==pdf and ref in m['Subject']
+   parts={p.get_content_type():p for p in m.walk() if p.get_content_type() in ('text/html','text/plain')}
+   assert set(parts)=={'text/html','text/plain'}
+   html=parts['text/html'].get_payload(decode=True).decode('utf-8')
+   plain=parts['text/plain'].get_payload(decode=True).decode('utf-8')
+   assert ref in html and ref in plain and 'PDF REPORT ATTACHED' in html
+   assert '#0f172b' in html and '#e1201b' in html and 'My Physio Saathi' in html
+   assert '<script>' not in html and '&lt;script&gt;' in html
+   assert 'tel:+919825647083' in html and 'not a clinical, security or compliance certification' in html
+   assert ('A new clinic assessment is ready.' if 'admin@example.test' in m['To'] else 'Your clinic workflow report is ready.') in html
   try:
    import fitz
    doc=fitz.open(stream=pdf,filetype='pdf');text=''.join(page.get_text() for page in doc)
