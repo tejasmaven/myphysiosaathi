@@ -36,10 +36,25 @@ class AssessmentPDF extends FPDF {
 /** Customer report uses the existing FPDF library, fonts, navy/red brand and footer. */
 class CustomerReportPDF extends AssessmentPDF {
     public function Header() {
+        if($this->PageNo()===1){
+            $this->SetFillColor(15,23,43);$this->Rect(0,0,210,297,'F');
+            $this->SetFillColor(225,32,27);$this->Rect(0,0,210,3,'F');$this->Rect(0,294,210,3,'F');
+            $this->SetXY(18,15);$this->SetFont('Helvetica','B',12);$this->SetTextColor(255,255,255);$this->Cell(0,7,'MY PHYSIO SAATHI');
+            $this->SetXY(18,24);$this->SetFont('Helvetica','',9);$this->SetTextColor(202,213,226);$this->Cell(0,5,'Every patient visit, connected.');$this->SetXY(18,39);return;
+        }
         $this->SetFillColor(15,23,43);$this->Rect(0,0,210,16,'F');
         $this->SetFillColor(225,32,27);$this->Rect(0,0,210,2,'F');
         $this->SetXY(18,5);$this->SetFont('Helvetica','B',8);$this->SetTextColor(255,255,255);
         $this->Cell(0,6,'MY PHYSIO SAATHI | CLINIC WORKFLOW REPORT');$this->SetXY(18,26);
+    }
+    public function Footer() {
+        if($this->PageNo()!==1){parent::Footer();return;}
+        $this->SetY(-17);$this->SetTextColor(202,213,226);$this->SetFont('Helvetica','',9);
+        $this->Cell(145,7,'Tejas P Mehta | Call: +91 98256 47083');$this->Cell(29,7,$this->PageNo().'/{nb}',0,0,'R');
+    }
+    public function CoverText(string $text,bool $bold=false,float $size=9): void {
+        $this->SetFont('Helvetica',$bold?'B':'',$size);$this->SetTextColor(222,231,242);$this->MultiCell(0,4.4,pdf_text($text),0,'L');$this->Ln(1.5);
+        if($this->GetY()>273)throw new RuntimeException('Compact report page overflow.');
     }
     public function Section(string $label,string $title): void {
         $this->SetTextColor(183,25,22);$this->SetFont('Helvetica','B',9);$this->MultiCell(0,5,pdf_text(strtoupper($label)));$this->Ln(2);$this->SetFont('Helvetica','B',16);$this->SetTextColor(15,23,43);$this->MultiCell(0,7,pdf_text($title),0,'L');$this->Ln(3);
@@ -54,10 +69,10 @@ class CustomerReportPDF extends AssessmentPDF {
     public function Tiles(array $tiles): void {
         $width=174/count($tiles);$y=$this->GetY();
         foreach($tiles as $i=>$tile){$x=18+$i*$width;
-            $this->SetFillColor(239,245,250);$this->Rect($x,$y,$width-3,29,'F');
+            $this->SetFillColor(239,245,250);$this->Rect($x,$y,$width-3,18,'F');
             $this->SetXY($x+3,$y+3);$this->SetFont('Helvetica','B',8);$this->SetTextColor(55,65,81);$this->MultiCell($width-9,4,pdf_text($tile[0]));
-            $this->SetXY($x+3,$y+13);$this->SetFont('Helvetica','B',14);$this->SetTextColor(15,23,43);$this->MultiCell($width-9,6,pdf_text($tile[1]));
-        }$this->SetXY(18,$y+34);
+            $this->SetXY($x+3,$y+9);$this->SetFont('Helvetica','B',14);$this->SetTextColor(15,23,43);$this->MultiCell($width-9,6,pdf_text($tile[1]));
+        }$this->SetXY(18,$y+22);
     }
     public function Keep(float $height): void {if($this->GetY()+$height>273)$this->AddPage();}
     public function Table(array $headers,array $rows,array $widths,string $continuation): void {
@@ -101,7 +116,7 @@ class CustomerReportPDF extends AssessmentPDF {
         $this->MultiCell(0,4.1,pdf_text($text),0,'L');$this->Ln(1.2);
         if($this->GetY()>273)throw new RuntimeException('Compact report page overflow.');
     }
-    public function Profile(array $rows): void {
+    public function Profile(array $rows,bool $cover=false): void {
         foreach($rows as $index=>[$label,$value]){
             $cap=[1,1,3,3,3,2,1,4,2][$index]??3;
             if($this->Lines($value,false,111,9)>$cap){
@@ -109,10 +124,10 @@ class CustomerReportPDF extends AssessmentPDF {
                 do{array_pop($parts);$value=rtrim(implode('',$parts)).' [excerpt]';}while($parts && $this->Lines($value,false,111,9)>$cap);
             }
             $height=max($this->Lines($label,true,51,9),$this->Lines($value,false,111,9))*4.4+6;$y=$this->GetY();
-            $this->SetFillColor(229,237,246);$this->Rect(18,$y,57,$height,'F');$this->SetFillColor(248,250,252);$this->Rect(75,$y,117,$height,'F');
-            $this->SetDrawColor(216,226,237);$this->Rect(18,$y,174,$height);
-            $this->SetXY(21,$y+3);$this->SetFont('Helvetica','B',9);$this->SetTextColor(15,23,43);$this->MultiCell(51,4.4,pdf_text($label),0,'L');
-            $this->SetXY(78,$y+3);$this->SetFont('Helvetica','',9);$this->SetTextColor(55,65,81);$this->MultiCell(111,4.4,pdf_text($value),0,'L');$this->SetXY(18,$y+$height);
+            $this->SetFillColor(...($cover?[36,56,82]:[229,237,246]));$this->Rect(18,$y,57,$height,'F');$this->SetFillColor(...($cover?[27,43,64]:[248,250,252]));$this->Rect(75,$y,117,$height,'F');
+            $this->SetDrawColor(...($cover?[51,70,94]:[216,226,237]));$this->Rect(18,$y,174,$height);
+            $this->SetXY(21,$y+3);$this->SetFont('Helvetica','B',9);$this->SetTextColor(...($cover?[255,255,255]:[15,23,43]));$this->MultiCell(51,4.4,pdf_text($label),0,'L');
+            $this->SetXY(78,$y+3);$this->SetFont('Helvetica','',9);$this->SetTextColor(...($cover?[222,231,242]:[55,65,81]));$this->MultiCell(111,4.4,pdf_text($value),0,'L');$this->SetXY(18,$y+$height);
         }
     }
     public function CompactHeight(array $rows,array $widths,float $size,float $line): float {
@@ -120,7 +135,7 @@ class CustomerReportPDF extends AssessmentPDF {
     }
     public function CompactTable(array $headers,array $rows,array $widths,float $size=9,float $line=4): void {
         $draw=function(array $cells,bool $head=false,int $index=0)use($widths,$size,$line){
-            $attention=!$head && strpos($cells[0],'IMPORTANT CONTROL GAP')!==false;
+            $attention=!$head && strpos(implode(' ',$cells),'CONTROL GAP')!==false;
             $lines=1;foreach($cells as $i=>$cell)$lines=max($lines,$this->Lines($cell,$head,$widths[$i]-5,$size));$height=$lines*$line+4;$y=$this->GetY();
             if($y+$height>273)throw new RuntimeException('Compact table overflow.');$x=18;
             foreach($cells as $i=>$cell){$this->SetFillColor($head?15:($index%2?248:239),$head?23:($index%2?250:245),$head?43:($index%2?252:250));$this->SetDrawColor(218,226,235);if(isset($attention) && $attention)$this->SetFillColor(255,244,240);$this->Rect($x,$y,$widths[$i],$height,'DF');
@@ -128,13 +143,69 @@ class CustomerReportPDF extends AssessmentPDF {
             $this->SetXY(18,$y+$height);
         };$draw($headers,true);foreach($rows as $i=>$row)$draw($row,false,$i);$this->Ln(2);
     }
-    public function FitDomain(array $rows,string $note): void {
-        $widths=[74,60,40];$headers=['Observation','Suggested plan / check','KRA / KPI'];
-        foreach([[9,4],[9,3.8]] as [$size,$line]){
-            $reserve=$this->Lines($note,false,174,9)*4.1+17;
-            if($this->GetY()+$this->CompactHeight($rows,$widths,$size,$line)+8.6+$reserve<=273){$this->CompactTable($headers,$rows,$widths,$size,$line);$this->Small($note);return;}
+    public function Circle(float $x,float $y,float $r): void {
+        $c=0.5522847498*$r;$k=$this->k;$h=$this->h;
+        $this->_out(sprintf('%.3F %.3F m',($x+$r)*$k,($h-$y)*$k));
+        foreach([[$x+$r,$y+$c,$x+$c,$y+$r,$x,$y+$r],[$x-$c,$y+$r,$x-$r,$y+$c,$x-$r,$y],[$x-$r,$y-$c,$x-$c,$y-$r,$x,$y-$r],[$x+$c,$y-$r,$x+$r,$y-$c,$x+$r,$y]] as $p)
+            $this->_out(sprintf('%.3F %.3F %.3F %.3F %.3F %.3F c',$p[0]*$k,($h-$p[1])*$k,$p[2]*$k,($h-$p[3])*$k,$p[4]*$k,($h-$p[5])*$k));
+        $this->_out('S');
+    }
+    public function RatingStrip($response,float $x,float $y,float $width): void {
+        $colours=[[183,25,22],[174,78,0],[128,85,0],[0,109,119],[22,101,52]];
+        $step=$width/5;
+        for($i=1;$i<=5;$i++){
+            $this->SetFillColor(...(is_int($response)?$colours[$i-1]:[226,232,240]));$this->Rect($x+($i-1)*$step,$y,$step-0.8,7.5,'F');
+            $this->SetTextColor(...(is_int($response)?[255,255,255]:[69,85,108]));$this->SetFont('Helvetica','B',9);
+            $this->SetXY($x+($i-1)*$step,$y+1);$this->Cell($step-0.8,5,(string)$i,0,0,'C');
+            if($response===$i){$this->SetDrawColor(255,255,255);$this->SetLineWidth(0.55);$this->Circle($x+($i-0.5)*$step-0.4,$y+3.75,2.9);$this->SetLineWidth(0.2);}
         }
-        throw new RuntimeException('Domain content exceeds the compact report layout.');
+    }
+    public function Scorecard(array $domains): void {
+        $widths=[56,18,22,57,21];$this->CompactTable(['Domain','Scored','Avg / 5','Interpretation','Open'],[],$widths,9,4);$this->Ln(-2);
+        foreach(array_values($domains) as $index=>$domain){
+            $cells=[$domain['code'].' / '.$domain['title'],$domain['counts']['numeric'].' / 5',report_number($domain['average']),$domain['interpretation'],(string)$domain['unresolved_count']];
+            $height=max(12,$this->CompactHeight([$cells],$widths,9,4));$y=$this->GetY();$x=18;
+            foreach($cells as $i=>$cell){
+                $this->SetFillColor(...($index%2?[248,250,252]:[239,245,250]));$this->SetDrawColor(218,226,235);$this->Rect($x,$y,$widths[$i],$height,'DF');
+                $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica',$i===2?'B':'',9);$this->SetTextColor(15,23,43);$this->MultiCell($widths[$i]-5,4,pdf_text($cell),0,'L');
+                if($i===2 && $domain['average']!==null){$this->SetFillColor(211,222,234);$this->Rect($x+2.5,$y+8,$widths[$i]-5,2,'F');$this->SetFillColor(15,23,43);$this->Rect($x+2.5,$y+8,($widths[$i]-5)*$domain['average']/5,2,'F');}
+                $x+=$widths[$i];
+            }$this->SetXY(18,$y+$height);
+        }$this->Ln(3);
+    }
+    public function GraphicDomainHeight(array $row,float $line): float {
+        $questionHeight=$this->Lines($row[0],false,77,9)*$line+13;
+        $other=max($this->Lines($row[1],false,51,9),$this->Lines($row[2],false,31,9))*$line;
+        return max($questionHeight,$other)+3;
+    }
+    public function FitDomain(array $rows,string $note): void {
+        if($this->Lines($note,false,174,9)>2){
+            preg_match_all('/./us',preg_replace('/\s*\[excerpt\]$/','',$note),$characters);$parts=$characters[0];
+            do{array_pop($parts);$note=rtrim(implode('',$parts)).' [excerpt]';}while($parts && $this->Lines($note,false,174,9)>2);
+        }
+
+        $widths=[82,56,36];$line=null;
+        foreach([4.0,3.8,3.6] as $candidate){
+            $height=array_sum(array_map(fn($row)=>$this->GraphicDomainHeight($row,$candidate),$rows));
+            $reserve=$this->Lines($note,false,174,9)*4.1+17;
+            if($this->GetY()+$height+8+$reserve<=273){$line=$candidate;break;}
+        }
+        if($line===null)throw new RuntimeException('Domain content exceeds the compact report layout.');
+        $this->CompactTable(['Question / selected response','Suggested plan / check','KRA / KPI'],[],$widths,9,4);$this->Ln(-2);
+        foreach($rows as $index=>$row){
+            $height=$this->GraphicDomainHeight($row,$line);$y=$this->GetY();$x=18;
+            $attention=strpos($row[0],'IMPORTANT CONTROL GAP')!==false;
+            foreach($widths as $i=>$width){
+                $this->SetFillColor(...($attention?[255,244,240]:($index%2?[248,250,252]:[239,245,250])));$this->SetDrawColor(218,226,235);$this->Rect($x,$y,$width,$height,'DF');
+                if($i===0){
+                    $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica','',9);$this->SetTextColor(15,23,43);$this->MultiCell($width-5,$line,pdf_text($row[0]),0,'L');
+                    $stripY=$this->GetY()+1;$this->RatingStrip($row[3],$x+2.5,$stripY,$width-5);
+                    $this->SetXY($x+2.5,$stripY+8);$this->SetFont('Helvetica','B',9);$this->SetTextColor(15,23,43);$this->MultiCell($width-5,3.6,pdf_text('Selected: '.($row[3]==='na'?'N/A (unreviewed)':$row[4])),0,'L');
+                }else{
+                    $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica','',9);$this->SetTextColor(55,65,81);$this->MultiCell($width-5,$line,pdf_text($row[$i]),0,'L');
+                }$x+=$width;
+            }$this->SetXY(18,$y+$height);
+        }$this->Ln(2);$this->Small($note);
     }
     public function Block(array $paragraphs,string $continuation=''): void {
         $height=5;foreach($paragraphs as $i=>$p)$height+=$this->Lines($p,$i===0)*5.2+1.5;
@@ -160,54 +231,48 @@ function report_short_action(array $finding): string {
 function customer_report_pdf(array $report,array $labels): string {
     $s=$report['submission'];$pdf=new CustomerReportPDF();$pdf->SetMargins(18,18,18);$pdf->SetAutoPageBreak(false);$pdf->AliasNbPages();
     $pdf->SetTitle('My Physio Saathi - Clinic Workflow Report');$pdf->SetAuthor('My Physio Saathi');
-    $pdf->AddPage();$pdf->Ln(8);$pdf->Section('Your clinic assessment','Clinic workflow improvement roadmap');
-    $pdf->Small('A practical review of your reported routines, with priorities and suggested checks.');$pdf->Ln(4);
+    $pdf->AddPage();$pdf->SetFont('Helvetica','B',29);$pdf->SetTextColor(255,255,255);$pdf->Cell(0,12,'CLINIC WORKFLOW',0,1);
+    $pdf->SetTextColor(255,128,122);$pdf->Cell(0,12,'ASSESSMENT REPORT',0,1);$pdf->Ln(4);
+    $pdf->CoverText('A practical review of patient records, treatment continuity, payments and clinic routines.',false,10);$pdf->SetY(90);
     $rows=[['Assessment reference',$s['id']],['Submission date',$s['submitted_at']]];
     foreach($labels as $key=>$label)$rows[]=[$label,report_excerpt((string)($s['fields'][$key]??'Not supplied'),$key==='location'?250:254)];
-    $pdf->Profile($rows);
-    $pdf->Ln(6);$pdf->Panel('Report status: '.$report['status'],$report['disclaimer']);
-    if($pdf->GetY()<220){$pdf->Small('Read this report in eight pages',true);
-    $pdf->Small('2  Summary, scores and items to confirm
-3-7  One page per domain: observations, actions and measures
-8  Suggested action plan and 90-day review');}
-    $pdf->Ln(3);
-    $pdf->Small('Assessment version: '.$report['versions']['assessment'].' | Scoring rules: '.$report['versions']['scoring'].' | Recommendation catalogue: '.$report['versions']['recommendations']);
-    $pdf->Small('Roadmap measures: '.$report['versions']['roadmap'].' | Presentation: '.$report['versions']['presentation']);
-    $pdf->Small('Long profile fields or explanations may appear as labelled excerpts. Full original text is retained in the private assessment record.');
+    $pdf->Profile($rows,true);$pdf->Ln(5);
+    $pdf->CoverText('Report status: '.$report['status'],true);
+    $pdf->CoverText($report['disclaimer']);
+    $pdf->CoverText('Assessment version: '.$report['versions']['assessment'].' | Scoring rules: '.$report['versions']['scoring'].' | Recommendation catalogue: '.$report['versions']['recommendations'],false,8);
+    $pdf->CoverText('Roadmap measures: '.$report['versions']['roadmap'].' | Presentation: '.$report['versions']['presentation'].'. Longer fields may appear as labelled excerpts; full originals are retained privately.',false,8);
 
-    $pdf->AddPage();$pdf->Section('Executive summary','Where to focus first');
+    $pdf->AddPage();$pdf->Section('Executive summary','Scoring summary');
     $pdf->Tiles([['NUMERIC AVERAGE',$report['overall_eligible']?report_number($report['overall_average']).' / 5':'Not available'],['RESPONSE COVERAGE',$report['coverage']===null?'Not available':report_number($report['coverage']).'%'],['REPORT STATUS',$report['status']==='Insufficient information'?'Insufficient':($report['status']==='Provisional'?'Provisional':'Self-reported')]]);
     $pdf->Small('Report status: '.$report['status'].' | '.$report['overall_interpretation'],true);
     $c=$report['counts'];$pdf->Small('Numeric: '.$c['numeric'].' | Unknown: '.$c['unknown'].' | N/A: '.$c['na'].' | Missing: '.$c['missing']);
     $pdf->Small($report['coverage_label'].'. Average = numeric sum / numeric count. An overall interpretation needs 80% coverage and three numeric answers per domain.');
-    $pdf->Ln(2);$rows=[];
-    foreach($report['domains'] as $d)$rows[]=[$d['code'].' / '.$d['title'],(string)$d['counts']['numeric'].' / 5',report_number($d['average']),$d['interpretation'],(string)$d['unresolved_count']];
-    $pdf->CompactTable(['Domain','Scored','Avg / 5','Interpretation','Open'],$rows,[56,18,22,57,21],9,4);
-    foreach(['strongest_domain'=>'Strongest scored domain','weakest_domain'=>'Weakest scored domain'] as $key=>$label){$d=$report[$key];$pdf->Small($label.': '.($d?$d['code'].' / '.$d['title'].' ('.report_number($d['average']).' / 5)':'Not available'));}
-    $pdf->Ln(2);$pdf->Small('Numeric priorities',true);
-    if(!$report['priority_findings'])$pdf->Small('No numeric gaps scoring 1, 2 or 3 were reported. Confirmation tasks may still be needed.');
-    foreach($report['priority_findings'] as $f)$pdf->Small($f['id'].' / '.$f['title'].' | '.$f['response_label'].($f['control_gap']?' | IMPORTANT CONTROL GAP':'').'. '.$f['category'].'.',true);
+    $pdf->Ln(2);$pdf->Scorecard($report['domains']);
+    $extremes=[];foreach(['strongest_domain'=>'Strongest scored domain','weakest_domain'=>'Weakest scored domain'] as $key=>$label){$d=$report[$key];$extremes[]=$label.': '.($d?$d['code'].' ('.report_number($d['average']).' / 5)':'Not available');}$pdf->Small(implode(' | ',$extremes));
+    $pdf->Ln(2);$pdf->Small('Priorities for improvement',true);
+    $priorityRows=[];
+    foreach($report['priority_findings'] as $i=>$f)$priorityRows[]=[(string)($i+1),$f['id'].' / '.$f['title'].($f['control_gap']?"\nIMPORTANT CONTROL GAP":''),$f['response_label'],preg_split('/(?<=[.!?])\s+/u',$f['recommendation'],2)[0]];
+    if($priorityRows)$pdf->CompactTable(['#','Supported finding','Score','Suggested first action'],$priorityRows,[10,66,22,76],9,3.8);
+    else $pdf->Small('No numeric gaps scoring 1, 2 or 3 were reported. Confirmation tasks may still be needed.');
     $pdf->Ln(2);$pdf->Small('Items to confirm',true);
     $unknown=$report['items_to_confirm'];$controls=array_filter($unknown,fn($f)=>$f['important_control']);$others=array_filter($unknown,fn($f)=>!$f['important_control']);
     $pdf->Small('Unknown / missing, not demonstrated failures. Important controls: '.($controls?implode(', ',array_column($controls,'id')):'None').'. Other items: '.($others?implode(', ',array_column($others,'id')):'None').'.');
     $nas=$report['applicability_review'];$pdf->Small('Respondent-selected N/A for applicability review: '.($nas?implode(', ',array_column($nas,'id')):'None').'. See each domain for the question and task.');
     if(isset($report['findings']['D5']) && $report['findings']['D5']['response']==='na')$pdf->Small('D5: Why is checking that an earlier clinic problem has been corrected considered inapplicable? Record and review the reason.');
-    $pdf->Small('Scoring rules are internal product rules, not validated industry thresholds. Paper and digital processes are assessed on the same basis.');
-    $pdf->Small('Unresolved counts include unknown, missing and unreviewed N/A. High averages do not remove control gaps. All scores remain self-reported. KRA = area of responsibility. KPI = progress measure.');
+    $scale=[];foreach($report['rating_scale'] as $score=>$rating)$scale[]=$score.' '.$rating['level'];$pdf->Small('Rating key: '.implode('; ',$scale).'. The selected response is circled. Unknown and N/A have no selected numeric score.');
+    $pdf->Small('Self-reported results; bands are not industry benchmarks. Open = unknown, missing or unreviewed N/A.');
 
     foreach($report['domains'] as $d){
-        $pdf->AddPage();$pdf->Section('Domain '.$d['code'].' / observation, plan and measures',$d['title']);
+        $pdf->AddPage();$pdf->Section('Domain '.$d['code'].' / questions, ratings and improvements',$d['title']);
         $pdf->Small('Average: '.report_number($d['average']).($d['average']!==null?' / 5':'').' | Numeric: '.$d['counts']['numeric'].' / 5 | Unresolved: '.$d['unresolved_count'].' | '.$d['interpretation'],true);
 
         $rows=[];
         foreach($report['findings'] as $f){if($f['domain']!==$d['code'])continue;$m=$report['kpi_register'][$f['id']];
-            $observation=$f['id'].' / '.$f['title'].'
-'.$f['question'].'
-Response: '.$f['response_label'];
+            $observation=$f['id'].'. '.$f['question'];
             if($f['control_gap'])$observation.='
 IMPORTANT CONTROL GAP';
             if(is_int($f['response']) && $f['response']<=3)$observation.='
-This may lead to: '.$f['consequence'];
+Possible consequence: '.$f['consequence'];
             elseif(!is_int($f['response']))$observation.='
 Confirmation required, not a proven failure.';
             else $observation.='
@@ -221,12 +286,12 @@ Owner: '.$f['role'].' | '.$f['timing'];
             $measure='KRA: '.$m['kra'].'
 KPI: '.$m['kpi'].(!is_int($f['response'])?'
 '.($f['response']==='na'?'Review applicability first.':'Verify before planning.'):'');
-            $rows[]=[$observation,$action,$measure];
+            $rows[]=[$observation,$action,$measure,$f['response'],$f['response_label']];
         }
         $note=$s['domain_notes'][$d['code']]??'';
-        $endText=trim($note)===''?'No domain explanation supplied. Scores are self-reported, not independently verified.':'Submitted domain explanation, not independently verified: '.report_excerpt($note,180).'. A domain note does not verify every question.';
+        $endText=trim($note)===''?'No domain explanation supplied. Scores are self-reported, not independently verified.':'Submitted domain note (unverified): '.report_excerpt($note,180);
         $pdf->FitDomain($rows,$endText);
-        $pdf->Small('Baseline to be measured; targets to agree; actual outcomes not yet measured. For percentage KPIs, retain numerator, denominator and review period. Zero opportunities: No eligible cases. Keep patient-level evidence private.');
+        $pdf->Small('Baseline: measure first; targets: agree; actuals: not yet measured. Percent KPIs: keep numerator, denominator and period; zero cases: No eligible cases. KRA = responsibility; KPI = measure. Keep patient evidence private.');
     }
 
     $pdf->AddPage();$pdf->Section('Suggested next steps','Suggested 30-day action plan');

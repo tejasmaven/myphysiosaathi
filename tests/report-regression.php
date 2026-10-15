@@ -15,7 +15,7 @@ foreach(['A'=>3.4,'B'=>4.5,'C'=>2.5,'D'=>3.5,'E'=>3.8] as $id=>$average)close_to
 check($report['numeric_sum']===78,'Numeric sum');check($report['counts']===['numeric'=>22,'unknown'=>2,'na'=>1,'missing'=>0],'Counts');
 check(report_number($report['overall_average'])==='3.55','Question-weighted average');check(report_number($report['coverage'])==='91.67','Coverage');
 check($report['status']==='Provisional' && $report['overall_eligible'],'Provisional but eligible interpretation');
-check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='4.0.0','Versioned roadmap');
+check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='5.0.0','Versioned roadmap');
 check(count($report['kpi_register'])===25 && count($report['domain_plans'])===5,'Complete domain and KPI planning coverage');
 foreach($report['kpi_register'] as $m){check($m['actual_day90']===null,'No invented actuals');check($m['baseline']==='Baseline to be measured','No inferred KPI baseline');}
 check($report['kpi_register']['C1']['mode']==='Confirm before planning','Unknown KPI requires confirmation');
@@ -72,10 +72,19 @@ mt_srand(20261009);
 for($case=0;$case<100;$case++){
     $s=$submission;$s['id']='09102026-1';$choices=[1,2,3,4,5,'unknown','na'];
     foreach($s['answers'] as $id=>$value)$s['answers'][$id]=$choices[$case<7?$case:mt_rand(0,6)];
-    $s['domain_notes']=array_fill_keys(['A','B','C','D','E'],substr(str_repeat('Anonymised explanation. ',100),0,2000));
+    $s['domain_notes']=array_fill_keys(['A','B','C','D','E'],$case<7?str_repeat('W',2000):substr(str_repeat('Anonymised explanation. ',100),0,2000));
     $bytes=customer_report_pdf(assessment_build_report($s,$domains,$rules,$catalogue),$labels);
     check(preg_match_all('/\/Type \/Page\b/',$bytes)===8,'Eight-page mixed response case '.$case);
 }
+// Visual-reference answer pattern, with fictional profile details for a shareable preview.
+$design=$submission;$design['id']='15102026-1';$design['submitted_at']='15 Oct 2026, 14:36 IST';$design['fields']['beds']=3;
+$designAnswers=['A'=>[3,2,3,2,3],'B'=>[4,3,2,3,3],'C'=>[3,4,3,3,3],'D'=>[3,3,2,3,2],'E'=>[4,5,4,3,2]];
+foreach($designAnswers as $code=>$values)foreach($values as $index=>$answer)$design['answers'][$code.($index+1)]=$answer;
+$designReport=assessment_build_report($design,$domains,$rules,$catalogue);
+close_to($designReport['overall_average'],3.0,'Reference sample average unchanged');
+foreach(['A'=>2.6,'B'=>3.0,'C'=>3.2,'D'=>2.6,'E'=>3.6] as $code=>$average)close_to($designReport['domains'][$code]['average'],$average,'Reference domain unchanged');
+check(array_column($designReport['priority_findings'],'id')===['E5','A2','A4'],'Reference priorities unchanged');
+if(getenv('REPORT_DESIGN_OUTPUT'))file_put_contents(getenv('REPORT_DESIGN_OUTPUT'),customer_report_pdf($designReport,$labels));
 // Optional layout fixtures for the release's explicit PDF acceptance review.
 if(getenv('REPORT_TEST_DIRECTORY')){
     $dir=getenv('REPORT_TEST_DIRECTORY');if(!is_dir($dir))mkdir($dir,0700,true);
