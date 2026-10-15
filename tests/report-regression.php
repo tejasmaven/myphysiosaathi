@@ -15,7 +15,7 @@ foreach(['A'=>3.4,'B'=>4.5,'C'=>2.5,'D'=>3.5,'E'=>3.8] as $id=>$average)close_to
 check($report['numeric_sum']===78,'Numeric sum');check($report['counts']===['numeric'=>22,'unknown'=>2,'na'=>1,'missing'=>0],'Counts');
 check(report_number($report['overall_average'])==='3.55','Question-weighted average');check(report_number($report['coverage'])==='91.67','Coverage');
 check($report['status']==='Provisional' && $report['overall_eligible'],'Provisional but eligible interpretation');
-check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='5.0.0','Versioned roadmap');
+check($report['versions']['roadmap']==='2.0.0' && $report['versions']['presentation']==='5.1.0','Versioned roadmap');
 check(count($report['kpi_register'])===25 && count($report['domain_plans'])===5,'Complete domain and KPI planning coverage');
 foreach($report['kpi_register'] as $m){check($m['actual_day90']===null,'No invented actuals');check($m['baseline']==='Baseline to be measured','No inferred KPI baseline');}
 check($report['kpi_register']['C1']['mode']==='Confirm before planning','Unknown KPI requires confirmation');

@@ -173,10 +173,44 @@ class CustomerReportPDF extends AssessmentPDF {
             }$this->SetXY(18,$y+$height);
         }$this->Ln(3);
     }
+    /** Wrap mixed-weight labels once, using the same glyph widths for measurement and drawing. */
+    public function LabelLines(string $text,float $width): array {
+        $characters=[];$text=rtrim(str_replace("\r",'',pdf_text($text)),"\n");
+        foreach(preg_split('/(Owner:|Check:|KRA:|KPI:)/',$text,-1,PREG_SPLIT_DELIM_CAPTURE) as $part){
+            $bold=in_array($part,['Owner:','Check:','KRA:','KPI:'],true);$this->SetFont('Helvetica',$bold?'B':'',9);
+            foreach(str_split($part) as $char)$characters[]=[$char,($this->CurrentFont['cw'][$char]??0)*$this->FontSize/1000,$bold];
+        }
+        $maximum=$width-2*$this->cMargin;$lines=[];$start=0;$i=0;$space=-1;$length=0;$count=count($characters);
+        while($i<$count){
+            [$char,$widthOfChar]=$characters[$i];
+            if($char==="\n"){$lines[]=array_slice($characters,$start,$i-$start);$start=++$i;$space=-1;$length=0;continue;}
+            if($char===' ')$space=$i;
+            if($length+$widthOfChar>$maximum){
+                if($space>=$start){$end=$space;$next=$space+1;}else{$end=$i>$start?$i:$i+1;$next=$end;}
+                $lines[]=array_slice($characters,$start,$end-$start);$start=$i=$next;$space=-1;$length=0;continue;
+            }$length+=$widthOfChar;$i++;
+        }
+        if($start<$count || !$lines)$lines[]=array_slice($characters,$start);
+        return $lines;
+    }
+    public function LabelCell(string $text,float $width,float $line): void {
+        $x=$this->GetX();$y=$this->GetY();$lines=$this->LabelLines($text,$width);$margin=$this->cMargin;$this->cMargin=0;
+        foreach($lines as $offset=>$characters){
+            $this->SetXY($x+$margin,$y+$offset*$line);$chunk='';$bold=null;
+            foreach($characters as [$char,$charWidth,$isBold]){
+                if($bold!==null && $bold!==$isBold){$this->SetFont('Helvetica',$bold?'B':'',9);$this->Cell($this->GetStringWidth($chunk),$line,$chunk);$chunk='';}
+                $bold=$isBold;$chunk.=$char;
+            }
+            if($chunk!==''){$this->SetFont('Helvetica',$bold?'B':'',9);$this->Cell($this->GetStringWidth($chunk),$line,$chunk);}
+        }
+        $this->cMargin=$margin;$this->SetXY($x,$y+count($lines)*$line);
+    }
     public function GraphicDomainHeight(array $row,float $line): float {
-        $questionHeight=$this->Lines($row[0],false,77,9)*$line+13;
-        $other=max($this->Lines($row[1],false,51,9),$this->Lines($row[2],false,31,9))*$line;
-        return max($questionHeight,$other)+3;
+        $caption=is_int($row[3])?'':($row[3]==='na'?'N/A (unreviewed)':$row[4]);
+        $captionHeight=$caption===''?0:$this->Lines($caption,true,77,9)*$line;
+        $questionHeight=$this->Lines($row[0],true,77,9)*$line+9.5+$captionHeight+$this->Lines($row[5],false,77,9)*$line;
+        $other=max(count($this->LabelLines($row[1],51)),count($this->LabelLines($row[2],31)))*$line;
+        return max($questionHeight,$other)+4;
     }
     public function FitDomain(array $rows,string $note): void {
         if($this->Lines($note,false,174,9)>2){
@@ -187,22 +221,24 @@ class CustomerReportPDF extends AssessmentPDF {
         $widths=[82,56,36];$line=null;
         foreach([4.0,3.8,3.6] as $candidate){
             $height=array_sum(array_map(fn($row)=>$this->GraphicDomainHeight($row,$candidate),$rows));
-            $reserve=$this->Lines($note,false,174,9)*4.1+17;
+            $reserve=$this->Lines($note,false,174,9)*4.1+3.2;
             if($this->GetY()+$height+8+$reserve<=273){$line=$candidate;break;}
         }
         if($line===null)throw new RuntimeException('Domain content exceeds the compact report layout.');
         $this->CompactTable(['Question / selected response','Suggested plan / check','KRA / KPI'],[],$widths,9,4);$this->Ln(-2);
         foreach($rows as $index=>$row){
             $height=$this->GraphicDomainHeight($row,$line);$y=$this->GetY();$x=18;
-            $attention=strpos($row[0],'IMPORTANT CONTROL GAP')!==false;
+            $attention=$row[6];
             foreach($widths as $i=>$width){
                 $this->SetFillColor(...($attention?[255,244,240]:($index%2?[248,250,252]:[239,245,250])));$this->SetDrawColor(218,226,235);$this->Rect($x,$y,$width,$height,'DF');
                 if($i===0){
-                    $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica','',9);$this->SetTextColor(15,23,43);$this->MultiCell($width-5,$line,pdf_text($row[0]),0,'L');
+                    $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica','B',9);$this->SetTextColor(15,23,43);$this->MultiCell($width-5,$line,pdf_text($row[0]),0,'L');
                     $stripY=$this->GetY()+1;$this->RatingStrip($row[3],$x+2.5,$stripY,$width-5);
-                    $this->SetXY($x+2.5,$stripY+8);$this->SetFont('Helvetica','B',9);$this->SetTextColor(15,23,43);$this->MultiCell($width-5,3.6,pdf_text('Selected: '.($row[3]==='na'?'N/A (unreviewed)':$row[4])),0,'L');
+                    $this->SetXY($x+2.5,$stripY+8.5);$this->SetTextColor(15,23,43);
+                    if(!is_int($row[3])){$this->SetFont('Helvetica','B',9);$this->MultiCell($width-5,$line,pdf_text($row[3]==='na'?'N/A (unreviewed)':$row[4]),0,'L');}
+                    $this->SetX($x+2.5);$this->SetFont('Helvetica','',9);$this->MultiCell($width-5,$line,pdf_text($row[5]),0,'L');
                 }else{
-                    $this->SetXY($x+2.5,$y+2);$this->SetFont('Helvetica','',9);$this->SetTextColor(55,65,81);$this->MultiCell($width-5,$line,pdf_text($row[$i]),0,'L');
+                    $this->SetXY($x+2.5,$y+2);$this->SetTextColor(55,65,81);$this->LabelCell($row[$i],$width-5,$line);
                 }$x+=$width;
             }$this->SetXY(18,$y+$height);
         }$this->Ln(2);$this->Small($note);
@@ -268,15 +304,11 @@ function customer_report_pdf(array $report,array $labels): string {
 
         $rows=[];
         foreach($report['findings'] as $f){if($f['domain']!==$d['code'])continue;$m=$report['kpi_register'][$f['id']];
-            $observation=$f['id'].'. '.$f['question'];
-            if($f['control_gap'])$observation.='
-IMPORTANT CONTROL GAP';
-            if(is_int($f['response']) && $f['response']<=3)$observation.='
-Possible consequence: '.$f['consequence'];
-            elseif(!is_int($f['response']))$observation.='
-Confirmation required, not a proven failure.';
-            else $observation.='
-'.$f['evidence_label'];
+            $observation=$f['id'].'. '.$f['question'];$afterAnswer='';
+            if($f['control_gap'])$afterAnswer.='IMPORTANT CONTROL GAP';
+            if(is_int($f['response']) && $f['response']<=3)$afterAnswer.=($afterAnswer!==''?"\n":'').'Possible consequence: '.$f['consequence'];
+            elseif(!is_int($f['response']))$afterAnswer.='Confirmation required, not a proven failure.';
+            else $afterAnswer.=$f['evidence_label'];
             $action=report_short_action($f).'
 Owner: '.$f['role'].' | '.$f['timing'].'
 Check: '.$f['completion_check'];
@@ -286,12 +318,11 @@ Owner: '.$f['role'].' | '.$f['timing'];
             $measure='KRA: '.$m['kra'].'
 KPI: '.$m['kpi'].(!is_int($f['response'])?'
 '.($f['response']==='na'?'Review applicability first.':'Verify before planning.'):'');
-            $rows[]=[$observation,$action,$measure,$f['response'],$f['response_label']];
+            $rows[]=[$observation,$action,$measure,$f['response'],$f['response_label'],$afterAnswer,$f['control_gap']];
         }
         $note=$s['domain_notes'][$d['code']]??'';
         $endText=trim($note)===''?'No domain explanation supplied. Scores are self-reported, not independently verified.':'Submitted domain note (unverified): '.report_excerpt($note,180);
         $pdf->FitDomain($rows,$endText);
-        $pdf->Small('Baseline: measure first; targets: agree; actuals: not yet measured. Percent KPIs: keep numerator, denominator and period; zero cases: No eligible cases. KRA = responsibility; KPI = measure. Keep patient evidence private.');
     }
 
     $pdf->AddPage();$pdf->Section('Suggested next steps','Suggested 30-day action plan');

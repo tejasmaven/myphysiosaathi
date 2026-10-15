@@ -92,6 +92,14 @@ with tempfile.TemporaryDirectory(prefix='mps-integration-') as temp:
    doc=fitz.open(stream=pdf,filetype='pdf');text=''.join(page.get_text() for page in doc)
    for required in ['3.55 / 5','91.67%','Provisional','IMPORTANT CONTROL GAP','C4','C5','D1','C1','B5','D5','Suggested 30-day action plan','Scoring rules: 2.0.0','KRA / KPI','Day-90 outcome review','Suggested 90-day roadmap']:assert required in text,required
    assert '125' not in text and 'checking that an earlier clinic problem' in text
+   for page in list(doc)[2:7]:
+    page_text=page.get_text()
+    assert 'Selected:' not in page_text and 'Baseline: measure first' not in page_text
+    spans=[span for block in page.get_text('dict')['blocks'] for line in block.get('lines',[]) for span in line['spans']]
+    for label in ['Owner:','Check:','KRA:','KPI:']:
+     assert any(label in span['text'] and 'Bold' in span['font'] for span in spans),label
+    assert sum(bool(re.match(r'^[A-E][1-5]\.',span['text'])) and 'Bold' in span['font'] for span in spans)==5
+
   except ImportError:print('PyMuPDF unavailable: attachment bytes checked, text extraction skipped.')
   # Replayed successful POST has an expired token and cannot create another record.
   assert 'session has expired' in post(data) and len(list((temp/'reports').glob('*.json')))==1
