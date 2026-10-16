@@ -112,6 +112,10 @@ with tempfile.TemporaryDirectory(prefix='mps-site-test-') as directory:
         for path, html in pages.items():
             assert html.count('Shared tracking: HEAD') == html.count('Shared tracking: BODY') == 1
             assert html.index('Shared tracking: HEAD') < html.index('</head>')
+            assert html.split('<head>', 1)[1].lstrip().startswith('<!-- Google tag (gtag.js) -->')
+            assert html.count('https://www.googletagmanager.com/gtag/js?id=G-4ED7JBKJC6') == 1
+            assert html.count("gtag('config', 'G-4ED7JBKJC6');") == 1
+            assert html.index("gtag('config', 'G-4ED7JBKJC6');") < html.index('<meta charset=')
             assert html.index('<body>') < html.index('Shared tracking: BODY') < html.index('<header')
             assert 'href="pricing.php"' in html and 'class="site-header"' in html
             assert 'Tejas P Mehta' in html and 'href="tel:+919825647083"' in html

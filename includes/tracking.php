@@ -1,10 +1,18 @@
 <?php
-// Included by every public HTML page. Do not place SMTP secrets or customer details here.
-// Add Google Analytics OR the GTM container script in the head branch.
-// Put GTM's matching noscript iframe in the body branch. Avoid installing the same tag twice.
-if(($trackingPlacement??'head')==='head'):
+// Shared by all public content pages. Keep customer details out of analytics.
+// Install this tag here only, not a second time through a tag manager.
+if (($trackingPlacement ?? 'head') === 'head'):
 ?>
-<!-- Shared tracking: HEAD. Paste the approved analytics/container script here. -->
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-4ED7JBKJC6"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-4ED7JBKJC6');
+</script>
+<!-- Shared tracking: HEAD. Google Analytics G-4ED7JBKJC6. -->
 <?php else: ?>
-<!-- Shared tracking: BODY. Paste the GTM noscript block here, if used. -->
+<!-- Shared tracking: BODY. Reserved for an approved GTM noscript block if needed. -->
 <?php endif; ?>
