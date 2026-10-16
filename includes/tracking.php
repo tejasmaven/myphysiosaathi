@@ -12,7 +12,14 @@ if (($trackingPlacement ?? 'head') === 'head'):
 
   gtag('config', 'G-4ED7JBKJC6');
 </script>
-<!-- Shared tracking: HEAD. Google Analytics G-4ED7JBKJC6. -->
+<script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "yyl91zg2nj");
+</script>
+<!-- Shared tracking: HEAD. Google Analytics G-4ED7JBKJC6 and Microsoft Clarity yyl91zg2nj. -->
 <?php else: ?>
 <!-- Shared tracking: BODY. Reserved for an approved GTM noscript block if needed. -->
 <?php endif; ?>

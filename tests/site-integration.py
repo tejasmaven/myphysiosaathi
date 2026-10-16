@@ -116,6 +116,9 @@ with tempfile.TemporaryDirectory(prefix='mps-site-test-') as directory:
             assert html.count('https://www.googletagmanager.com/gtag/js?id=G-4ED7JBKJC6') == 1
             assert html.count("gtag('config', 'G-4ED7JBKJC6');") == 1
             assert html.index("gtag('config', 'G-4ED7JBKJC6');") < html.index('<meta charset=')
+            assert html.count('https://www.clarity.ms/tag/') == 1
+            assert html.count('"yyl91zg2nj"') == 1
+            assert html.index('<head>') < html.index('https://www.clarity.ms/tag/') < html.index('</head>')
             assert html.index('<body>') < html.index('Shared tracking: BODY') < html.index('<header')
             assert 'href="pricing.php"' in html and 'class="site-header"' in html
             assert 'Tejas P Mehta' in html and 'href="tel:+919825647083"' in html
