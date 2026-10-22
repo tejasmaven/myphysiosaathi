@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.request
 import urllib.parse
+from public_discovery import audit_public_site
 
 root = Path(__file__).resolve().parents[1]
 captured = []
@@ -142,6 +143,9 @@ with tempfile.TemporaryDirectory(prefix='mps-site-test-') as directory:
         assert 'noindex' in pages['free-assesment.php']
         assert 'url=index.php' in get('index.html') and 'url=pricing.php' in get('pricing.html')
         assert 'My Physio Saathi' in get('')
+
+        discovery = audit_public_site(base)
+        assert all(check['passed'] for check in discovery), discovery
 
         setup = json.loads(get('enquiry.php'))
         assert setup['configured']

@@ -1,0 +1,3 @@
+# Sitemap discovery only. No crawler-specific or AI-training policy is set here.
+# Private records remain protected by server access controls, not by this file.
+Sitemap: https://www.myphysiosaathi.in/sitemap.xml
